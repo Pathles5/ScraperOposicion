@@ -2,8 +2,8 @@ name: Monitor CM Educacion
 
 on:
   schedule:
-    # Cada 30 minutos
-    - cron: "*/30 * * * *"
+    # Cada 30 minutos, en los minutos :05 y :35 (UTC)
+    - cron: "5,35 * * * *"
   # Lanzamiento manual desde la pestaña Actions
   workflow_dispatch:
 
