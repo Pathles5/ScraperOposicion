@@ -1,0 +1,17 @@
+{
+  "project": "scraper-oposicion",
+  "version": "1.0",
+  "last_updated": "2026-07-20",
+  "features": [],
+  "phase_summary": {
+    "0": {
+      "name": "Foundation",
+      "status": "completed",
+      "completed_at": "2026-07-20",
+      "features": []
+    }
+  },
+  "next_actions": [
+    "Esperar a que el usuario defina la primera fase de producto."
+  ]
+}
