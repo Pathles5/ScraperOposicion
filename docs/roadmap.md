@@ -10,6 +10,60 @@
 
 ---
 
+## Fase 2: Notificación Telegram
+
+**Estado:** Completado
+**Fecha:** 2026-07-20
+
+Entregables:
+
+- `monitor.js` → `notifyChange` integrado con Telegram Bot API (`https://api.telegram.org/bot<TOKEN>/sendMessage`).
+- Mensaje en Markdown con el cambio detectado, nueva fecha y URL.
+- Variables de entorno `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID` leídas de `process.env`. Throw claro si faltan (instrucciones para configurarlas).
+- Workflow declara `environment: main` (GitHub Environment donde el usuario guardó los secrets).
+- Mapeo del secret con sufijo `_HTTP` (`TELEGRAM_BOT_TOKEN_HTTP`) a la env var limpia.
+- Línea muerta `DISCORD_WEBHOOK` eliminada del workflow.
+- Bot del usuario: `@OposicionCamBot` (Monitor Oposiciones).
+
+HANDOFF(s):
+
+- `.opencode/tasks/HANDOFF-FASE-1.md` (registra la decisión original).
+
+Task(s):
+
+- `.opencode/tasks/task-104-telegram-integration.md`
+
+---
+
+## Fase 1: Monitor de Oposiciones CM
+
+**Estado:** Completado
+**Fecha:** 2026-07-20
+
+Entregables:
+
+- Bot autónomo en Node.js (`monitor.js`) con tres secciones diferenciadas: SCRAPING (axios), LÓGICA DE BÚSQUEDA (cheerio + regex agnóstica tras task-103), NOTIFICACIÓN (stub en Fase 1, real con Telegram en Fase 2).
+- Persistencia de estado en `state.txt` versionado en el repo (valor inicial `16 julio 2026`).
+- GitHub Actions workflow (`.github/workflows/monitor.yml`) con cron `5,35 * * * *` UTC + `workflow_dispatch`, Node 20, ubuntu-latest, pnpm 9 con cache, secrets Telegram via environment "main", permisos `contents: write`, commit/push idempotente.
+- `package.json` ESM con `axios` + `cheerio`.
+- `eslint.config.js` plano (ESLint 9 flat config, sin Prettier).
+- README actualizado con tagline real e instrucciones de uso.
+
+Fixes incluidos en Fase 1:
+
+- task-102: regex tolerante a multi-línea y cron ajustado a `:05/:35` UTC.
+- task-103: regex reemplazada por versión agnóstica al formato (captura cualquier contenido tras "Última actualización:").
+
+HANDOFF(s):
+
+- `.opencode/tasks/HANDOFF-FASE-1.md`
+
+Pendiente:
+
+_Ninguno._ Las notificaciones reales se completaron en Fase 2.
+
+---
+
 ## Fase 0: Foundation
 
 **Estado:** Completado
@@ -23,32 +77,6 @@ Entregables:
 - Meta-archivos en root: `AGENTS.md`, `CONTRIBUTING.md`, `README.md`, `CHANGELOG.md`, `feature_list.json`.
 - `.gitignore` mínimo viable.
 - ADR-001 (agent swarm + SDD) y ADR-002 (sin suite de tests por defecto) registrados.
-
----
-
-## Fase 1: Monitor de Oposiciones CM
-
-**Estado:** Completado
-**Fecha:** 2026-07-20
-
-Entregables:
-
-- Bot autónomo en Node.js (`monitor.js`) con tres secciones diferenciadas: SCRAPING (axios), LÓGICA DE BÚSQUEDA (cheerio + regex estricta), NOTIFICACIÓN (stub).
-- Persistencia de estado en `state.txt` versionado en el repo (valor inicial `16 julio 2026`).
-- GitHub Actions workflow (`.github/workflows/monitor.yml`) con cron cada 30 minutos + `workflow_dispatch`, Node 20, ubuntu-latest, pnpm, secret reservado para Fase 2, permisos `contents: write`, commit/push idempotente.
-- `package.json` ESM con `axios` + `cheerio`.
-- `eslint.config.js` plano (ESLint 9 flat config, sin Prettier).
-- README actualizado con tagline real e instrucciones de uso.
-
-HANDOFF(s):
-
-- `.opencode/tasks/HANDOFF-FASE-1.md`
-
-Pendiente para Fase 2 (no incluido en Fase 1):
-
-- Implementar `notifyChange` real con **Telegram Bot API** (decisión registrada en HANDOFF-FASE-1).
-- Crear bot con @BotFather, obtener `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID`, añadirlos como secrets.
-- Actualizar workflow para inyectar ambos secrets.
 
 ---
 

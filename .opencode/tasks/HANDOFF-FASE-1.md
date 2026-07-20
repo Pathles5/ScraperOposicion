@@ -144,13 +144,17 @@ Para fase futura (Fase 2), opciones a considerar:
 - [ ] Usuario elige alternativa de notificación (para fase futura, no bloqueante ahora).
 
 
-## Decisión registrada para Fase 2 (no bloqueante)
+## Decisión ejecutada — Fase 2 completada (2026-07-20)
 
-**Notificación elegida:** **Telegram Bot API**.
+**Notificación implementada:** **Telegram Bot API**.
 
-Pendiente para Fase 2:
-- Crear bot con @BotFather, obtener `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID`.
-- Reemplazar el stub `notifyChange` por llamada a `https://api.telegram.org/bot<TOKEN>/sendMessage`.
-- Añadir `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID` como secrets en el repo.
-- Actualizar workflow para inyectar ambos secrets.
-- Actualizar HANDOFF y CHANGELOG al cierre de Fase 2.
+Cierre de Fase 2:
+- Bot del usuario: `@OposicionCamBot` (Monitor Oposiciones).
+- Stub `notifyChange` reemplazado por llamada real a `https://api.telegram.org/bot<TOKEN>/sendMessage`.
+- Secrets guardados por el usuario en GitHub Environment `main`:
+  - `TELEGRAM_BOT_TOKEN_HTTP` (mapeado a env var `TELEGRAM_BOT_TOKEN`).
+  - `TELEGRAM_CHAT_ID`.
+- Workflow declara `environment: main` y mapea los secrets a env vars limpias.
+- Línea muerta `DISCORD_WEBHOOK` eliminada del workflow.
+- Task de referencia: `.opencode/tasks/task-104-telegram-integration.md`.
+

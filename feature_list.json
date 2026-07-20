@@ -9,7 +9,7 @@
       "phase": 1,
       "status": "completed",
       "completed_at": "2026-07-20",
-      "description": "Bot autonomo que monitoriza https://www.comunidad.madrid/educacion/procesos-selectivos-oposiciones-maestros y detecta cambios en la fecha de 'Ultima actualizacion' mediante regex estricta. Si cambia, llama notifyChange (stub) y actualiza state.txt. GitHub Actions ejecuta cada 30 minutos.",
+      "description": "Bot autonomo que monitoriza https://www.comunidad.madrid/educacion/procesos-selectivos-oposiciones-maestros y detecta cambios en el contenido de 'Ultima actualizacion:' mediante regex agnostica. Si cambia, llama notifyChange (Telegram en Fase 2) y actualiza state.txt. GitHub Actions ejecuta cada 30 min en :05/:35 UTC.",
       "files": [
         "monitor.js",
         "state.txt",
@@ -19,6 +19,19 @@
       ],
       "task_ref": ".opencode/tasks/task-101-monitor-cm.md",
       "handoff_ref": ".opencode/tasks/HANDOFF-FASE-1.md"
+    },
+    {
+      "id": "telegram-notify",
+      "name": "Notificacion Telegram via Bot API",
+      "phase": 2,
+      "status": "completed",
+      "completed_at": "2026-07-20",
+      "description": "Cuando el monitor detecta un cambio, envia un mensaje Markdown al chat de Telegram configurado via Telegram Bot API (POST a /sendMessage). Lee TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID de process.env. Throw claro si faltan. Bot del usuario: @OposicionCamBot.",
+      "files": [
+        "monitor.js",
+        ".github/workflows/monitor.yml"
+      ],
+      "task_ref": ".opencode/tasks/task-104-telegram-integration.md"
     }
   ],
   "phase_summary": {
@@ -33,9 +46,15 @@
       "status": "completed",
       "completed_at": "2026-07-20",
       "features": ["monitor-cm-edu"]
+    },
+    "2": {
+      "name": "Notificacion Telegram",
+      "status": "completed",
+      "completed_at": "2026-07-20",
+      "features": ["telegram-notify"]
     }
   },
   "next_actions": [
-    "Esperar a que el usuario defina la Fase 2 (notificacion real con Telegram)."
+    "Push a GitHub y validar primer workflow_dispatch con notificacion real a Telegram."
   ]
 }

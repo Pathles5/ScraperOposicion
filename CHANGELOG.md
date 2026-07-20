@@ -37,3 +37,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed (Fase 1 — task-103, 2026-07-20)
 - `monitor.js`: regex `extractUpdateDate` reemplazada por una versión **agnóstica al formato` `/Última actualización:\s*([\s\S]+?)(?=\n\s*\n|$)/`. Captura literalmente cualquier contenido tras los dos puntos (fecha, nombre, código, etc.) hasta el próximo bloque claro o fin del body. Sin flags. Si no matchea, mantiene `throw + exit(1)`.
+
+
+### Added (Fase 2 — Notificación Telegram)
+- `monitor.js`: `notifyChange` reemplazado por llamada real a Telegram Bot API. Lee `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID` de `process.env` (throw claro si faltan). POST a `https://api.telegram.org/bot<TOKEN>/sendMessage` con `parse_mode: "Markdown"` y `disable_web_page_preview: true`. Throw si la API responde `ok !== true`.
+- `.github/workflows/monitor.yml`: job `check` declara `environment: main` para acceder a los secrets del GitHub Environment donde el usuario guardó los tokens. Step "Run monitor" inyecta `TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN_HTTP }}` (mapeo del secret con sufijo `_HTTP` a env var limpia) y `TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}`. Línea muerta `DISCORD_WEBHOOK` eliminada.
+
+### Changed (Fase 2)
+- Bot del usuario: `@OposicionCamBot` (Monitor Oposiciones).
+- README actualizado: sección "GitHub Actions" explica la configuración de secrets Telegram y el environment "main". Arquitectura (monitor.js) refleja que la PARTE 3 ya no es stub.

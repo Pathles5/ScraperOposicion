@@ -108,3 +108,4 @@ El script está organizado en tres secciones claramente diferenciadas:
 ## License
 
 ISC
+
