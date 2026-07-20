@@ -1,0 +1,58 @@
+name: Monitor CM Educacion
+
+on:
+  schedule:
+    # Cada 30 minutos
+    - cron: "*/30 * * * *"
+  # Lanzamiento manual desde la pestaña Actions
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: monitor-cm
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run monitor
+        env:
+          # Reservado para Fase 2 (cuando se implemente notifyChange).
+          # Si el secret no existe en el repo, GH Actions falla la ejecución.
+          # Por ahora NO lo referenciamos aquí — solo dejamos el comentario.
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: node monitor.js
+
+      - name: Commit state.txt if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state.txt
+          if git diff --cached --quiet; then
+            echo "Sin cambios en state.txt, nada que commitear."
+          else
+            git commit -m "chore(state): update last update date"
+            git push
+          fi
