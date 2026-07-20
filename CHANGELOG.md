@@ -33,3 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed (Fase 1 — task-102, 2026-07-20)
 - `monitor.js`: regex `extractUpdateDate` ahora tolera salto de línea entre "Última actualización:" y la fecha (la web la pone en línea separada tras la conversión HTML→texto). Sigue siendo estricto en formato `D mes YYYY` con los 12 meses en español explícitos y flag `i` para mayúsculas/minúsculas. Si no matchea, mantiene `throw + exit(1)`.
 - `.github/workflows/monitor.yml`: cron ajustado de `*/30 * * * *` a `5,35 * * * *` (mismo intervalo de 30 min, desfase +5 min en :05 y :35 UTC).
+
+
+### Fixed (Fase 1 — task-103, 2026-07-20)
+- `monitor.js`: regex `extractUpdateDate` reemplazada por una versión **agnóstica al formato` `/Última actualización:\s*([\s\S]+?)(?=\n\s*\n|$)/`. Captura literalmente cualquier contenido tras los dos puntos (fecha, nombre, código, etc.) hasta el próximo bloque claro o fin del body. Sin flags. Si no matchea, mantiene `throw + exit(1)`.
