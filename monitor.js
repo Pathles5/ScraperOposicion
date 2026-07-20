@@ -16,11 +16,12 @@ const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
-// Regex ESTRICTA en formato (D mes YYYY), tolerante en whitespace entre
-// la etiqueta y la fecha (la página la pone en la línea siguiente).
-// Si no matchea → exit(1) (decisión del usuario).
-const UPDATE_REGEX =
-  /Última actualización:\s*(\d{1,2}\s+(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+\d{4})/i;
+// Regex AGNÓSTICA: captura cualquier contenido (fecha, nombre, código, lo que sea)
+// tras "Última actualización:" hasta el próximo bloque claro (doble salto de línea)
+// o fin del body. Si no matchea → exit(1).
+// [\s\S]+?   → captura lazy cualquier char incluyendo newlines.
+// (?=\n\s*\n|$) → lookahead: termina en próximo bloque vacío (doble \n) o fin.
+const UPDATE_REGEX = /Última actualización:\s*([\s\S]+?)(?=\n\s*\n|$)/;
 
 
 // ============================================================
