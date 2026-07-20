@@ -1,17 +1,41 @@
-{
+﻿{
   "project": "scraper-oposicion",
   "version": "1.0",
   "last_updated": "2026-07-20",
-  "features": [],
+  "features": [
+    {
+      "id": "monitor-cm-edu",
+      "name": "Monitor CM Educacion (oposiciones maestros)",
+      "phase": 1,
+      "status": "completed",
+      "completed_at": "2026-07-20",
+      "description": "Bot autonomo que monitoriza https://www.comunidad.madrid/educacion/procesos-selectivos-oposiciones-maestros y detecta cambios en la fecha de 'Ultima actualizacion' mediante regex estricta. Si cambia, llama notifyChange (stub) y actualiza state.txt. GitHub Actions ejecuta cada 30 minutos.",
+      "files": [
+        "monitor.js",
+        "state.txt",
+        ".github/workflows/monitor.yml",
+        "package.json",
+        "eslint.config.js"
+      ],
+      "task_ref": ".opencode/tasks/task-101-monitor-cm.md",
+      "handoff_ref": ".opencode/tasks/HANDOFF-FASE-1.md"
+    }
+  ],
   "phase_summary": {
     "0": {
       "name": "Foundation",
       "status": "completed",
       "completed_at": "2026-07-20",
       "features": []
+    },
+    "1": {
+      "name": "Monitor de Oposiciones CM",
+      "status": "completed",
+      "completed_at": "2026-07-20",
+      "features": ["monitor-cm-edu"]
     }
   },
   "next_actions": [
-    "Esperar a que el usuario defina la primera fase de producto."
+    "Esperar a que el usuario defina la Fase 2 (notificacion real con Telegram)."
   ]
 }

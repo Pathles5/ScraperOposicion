@@ -1,4 +1,4 @@
-# Roadmap
+﻿# Roadmap
 
 > Fases del proyecto en orden de ejecución. Convención: **Fase 0..N** = fundación, **Fase A..Z** = refinamiento, renombrados, refactors.
 
@@ -23,6 +23,32 @@ Entregables:
 - Meta-archivos en root: `AGENTS.md`, `CONTRIBUTING.md`, `README.md`, `CHANGELOG.md`, `feature_list.json`.
 - `.gitignore` mínimo viable.
 - ADR-001 (agent swarm + SDD) y ADR-002 (sin suite de tests por defecto) registrados.
+
+---
+
+## Fase 1: Monitor de Oposiciones CM
+
+**Estado:** Completado
+**Fecha:** 2026-07-20
+
+Entregables:
+
+- Bot autónomo en Node.js (`monitor.js`) con tres secciones diferenciadas: SCRAPING (axios), LÓGICA DE BÚSQUEDA (cheerio + regex estricta), NOTIFICACIÓN (stub).
+- Persistencia de estado en `state.txt` versionado en el repo (valor inicial `16 julio 2026`).
+- GitHub Actions workflow (`.github/workflows/monitor.yml`) con cron cada 30 minutos + `workflow_dispatch`, Node 20, ubuntu-latest, pnpm, secret reservado para Fase 2, permisos `contents: write`, commit/push idempotente.
+- `package.json` ESM con `axios` + `cheerio`.
+- `eslint.config.js` plano (ESLint 9 flat config, sin Prettier).
+- README actualizado con tagline real e instrucciones de uso.
+
+HANDOFF(s):
+
+- `.opencode/tasks/HANDOFF-FASE-1.md`
+
+Pendiente para Fase 2 (no incluido en Fase 1):
+
+- Implementar `notifyChange` real con **Telegram Bot API** (decisión registrada en HANDOFF-FASE-1).
+- Crear bot con @BotFather, obtener `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID`, añadirlos como secrets.
+- Actualizar workflow para inyectar ambos secrets.
 
 ---
 
