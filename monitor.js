@@ -71,25 +71,62 @@ function extractUpdateDate(html) {
 
 
 // ============================================================
-// PARTE 3: NOTIFICACIÓN (STUB — fase futura)
+// PARTE 3: NOTIFICACIÓN (Telegram Bot API)
 // ============================================================
 
 /**
- * Stub de notificación. En esta fase NO se envía nada.
- * Cuando se implemente (Fase 2), reemplazar el cuerpo por la llamada
- * al proveedor elegido (Discord, Telegram, ntfy.sh, Slack, etc.).
+ * Envía una notificación a Telegram cuando se detecta un cambio.
+ * Lee TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID de las variables de entorno
+ * (configuradas como secrets en GitHub Environment "main").
  *
- * @param {string} newDate  Fecha nueva detectada
+ * @param {string} newDate  Contenido nuevo detectado (fecha, nombre, código, lo que sea)
  * @param {string} url      URL monitorizada
  * @returns {Promise<void>}
+ * @throws {Error} si faltan env vars o si la API de Telegram devuelve error
  */
 async function notifyChange(newDate, url) {
-  // TODO (Fase 2): implementar notificación real.
-  // Opciones pendientes de elegir: Discord, Telegram, ntfy.sh, Slack, GitHub Issues.
-  // Estructura prevista: POST a un webhook con payload { date, url }.
-  console.log(`[STUB notifyChange] Detectado cambio de fecha.`);
-  console.log(`  Nueva fecha: ${newDate}`);
-  console.log(`  URL:         ${url}`);
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+
+  if (!botToken || !chatId) {
+    throw new Error(
+      "Faltan variables de entorno para Telegram. " +
+        "Configura TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID como secrets " +
+        "en el GitHub Environment 'main' (o como env vars locales)."
+    );
+  }
+
+  const message = [
+    "🔔 *Cambio detectado — Oposiciones Maestros CM*",
+    "",
+    "*Nueva fecha de actualización:*",
+    "`" + newDate + "`",
+    "",
+    "*URL:*",
+    url,
+  ].join("\n");
+
+  const apiUrl = "https://api.telegram.org/bot" + botToken + "/sendMessage";
+
+  const response = await axios.post(
+    apiUrl,
+    {
+      chat_id: chatId,
+      text: message,
+      parse_mode: "Markdown",
+      disable_web_page_preview: true,
+    },
+    {
+      timeout: HTTP_TIMEOUT_MS,
+      validateStatus: (status) => status >= 200 && status < 300,
+    }
+  );
+
+  if (!response.data || response.data.ok !== true) {
+    throw new Error(
+      "Telegram API devolvió error: " + JSON.stringify(response.data)
+    );
+  }
 }
 
 

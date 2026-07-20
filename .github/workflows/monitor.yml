@@ -18,6 +18,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    environment: main
 
     steps:
       - name: Checkout
@@ -39,10 +40,13 @@ jobs:
 
       - name: Run monitor
         env:
-          # Reservado para Fase 2 (cuando se implemente notifyChange).
-          # Si el secret no existe en el repo, GH Actions falla la ejecución.
-          # Por ahora NO lo referenciamos aquí — solo dejamos el comentario.
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          # Fase 2: notificación real vía Telegram Bot API.
+          # Los secrets viven en el GitHub Environment "main" (no a nivel de repo),
+          # por eso este job referencia `environment: main` arriba.
+          # Nombre del secret en GitHub: TELEGRAM_BOT_TOKEN_HTTP (el usuario lo llamó así).
+          # Se mapea a la variable de entorno TELEGRAM_BOT_TOKEN que lee el código.
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN_HTTP }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: node monitor.js
 
       - name: Commit state.txt if changed
