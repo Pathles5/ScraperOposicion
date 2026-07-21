@@ -6,7 +6,8 @@
  * Persistencia por sitio en state/<siteId>.fingerprint.
  */
 
-import { readFile, writeFile, rename } from "node:fs/promises";
+import { readFile, writeFile, rename, appendFile, stat, truncate, mkdir } from "node:fs/promises";
+import { join } from "node:path";
 import { createHash } from "node:crypto";
 import axios from "axios";
 import * as cheerio from "cheerio";
@@ -19,6 +20,14 @@ const GET_TIMEOUT_MS = 30_000;
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
+// ============================================================
+// LOGGING ROTADO (D12): fichero logs/scraper.log con rotación por tamaño
+// ============================================================
+const LOG_DIR = "logs";
+const LOG_FILE = join(LOG_DIR, "scraper.log");
+const LOG_MAX_BYTES = 1_000_000;   // 1 MB → rotar
+const LOG_KEEP_BYTES = 500_000;    // truncar a 500 KB
 
 
 // ============================================================
@@ -274,18 +283,63 @@ async function sendTelegramSummary(summary, { firstRun }) {
 
 
 // ============================================================
+// PARTE 7: LOGGING A FICHERO ROTADO (D12)
+// ============================================================
+
+/**
+ * Escribe una línea en logs/scraper.log y, si supera LOG_MAX_BYTES,
+ * la trunca a LOG_KEEP_BYTES. Es fire-and-forget: el caller no
+ * necesita await para que el monitor siga adelante.
+ *
+ * @param {string} line Texto ya formateado (sin \n final; se añade).
+ */
+async function logToFile(line) {
+  try {
+    await mkdir(LOG_DIR, { recursive: true });
+    await appendFile(LOG_FILE, line + "\n", "utf8");
+    const stats = await stat(LOG_FILE).catch(() => null);
+    if (stats && stats.size > LOG_MAX_BYTES) {
+      await truncate(LOG_FILE, LOG_KEEP_BYTES);
+    }
+  } catch (err) {
+    // Fallar el log no debe matar el monitor.
+    console.error("[monitor] No pude escribir en logs/scraper.log:", err.message);
+  }
+}
+
+/**
+ * Helper sincrono que escribe a stdout Y al fichero rotado.
+ * @param {string} msg
+ */
+function logInfo(msg) {
+  console.log(msg);
+  logToFile(`[INFO ${new Date().toISOString()}] ${msg}`);
+}
+
+/**
+ * Helper sincrono que escribe a stderr Y al fichero rotado.
+ * Captura errores no esperados para que queden persistidos.
+ * @param {string} msg
+ */
+function logError(msg) {
+  console.error(msg);
+  logToFile(`[ERROR ${new Date().toISOString()}] ${msg}`);
+}
+
+
+// ============================================================
 // ORQUESTACIÓN
 // ============================================================
 
 async function main() {
   const sites = await loadSites();
-  console.log(`[monitor] Sitios configurados: ${sites.length}`);
+  logInfo(`[monitor] Sitios configurados: ${sites.length}`);
 
   const firstRun = await isFirstRun();
   const summary = [];
 
   for (const site of sites) {
-    console.log(`[monitor] Procesando: ${site.id} (${site.url})`);
+    logInfo(`[monitor] Procesando: ${site.id} (${site.url})`);
 
     const currentFingerprint = await detectFingerprint(site);
     const previousFingerprint = await loadStoredFingerprint(site.id);
@@ -317,6 +371,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(`[monitor] ERROR: ${err.message}`);
+  logError(`[monitor] ERROR: ${err.message}`);
   process.exit(1);
 });

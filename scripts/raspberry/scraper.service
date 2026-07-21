@@ -1,0 +1,23 @@
+[Unit]
+Description=Scraper Oposiciones CM — monitor multi-site
+Documentation=https://github.com/<owner>/scraper-oposicion
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/scraper-oposicion
+ExecStart=/usr/bin/node monitor.js
+EnvironmentFile=/etc/scraper-oposicion/telegram.env
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=scraper-oposicion
+
+# Resiliencia
+Restart=on-failure
+RestartSec=30s
+StartLimitInterval=10min
+StartLimitBurst=3
+
+[Install]
+WantedBy=multi-user.target

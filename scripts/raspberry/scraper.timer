@@ -1,0 +1,13 @@
+[Unit]
+Description=Scraper Oposiciones CM — cada 5 minutos
+Requires=scraper.service
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=10s
+Unit=scraper.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target
