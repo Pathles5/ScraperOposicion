@@ -1,43 +1,80 @@
 /**
- * Monitor de oposiciones — Comunidad de Madrid
- * Detecta cambios en la fecha de "Última actualización" de la página
- * de procesos selectivos de oposiciones a maestros.
+ * Monitor de oposiciones — multi-site
+ * Detecta cambios en N páginas web mediante:
+ *   1) HEAD-first: usa Last-Modified o ETag si el servidor lo envía.
+ *   2) Fallback: SHA-256 sobre HTML normalizado.
+ * Persistencia por sitio en state/<siteId>.fingerprint.
  */
 
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile, rename } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import axios from "axios";
 import * as cheerio from "cheerio";
 
-const TARGET_URL =
-  "https://www.comunidad.madrid/educacion/procesos-selectivos-oposiciones-maestros";
-const STATE_FILE = "state.txt";
-const HTTP_TIMEOUT_MS = 30_000;
+const SITES_FILE = ".opencode/config/sites.json";
+const STATE_DIR = "state";
+const HEAD_TIMEOUT_MS = 10_000;
+const GET_TIMEOUT_MS = 30_000;
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
-// Regex AGNÓSTICA: captura cualquier contenido (fecha, nombre, código, lo que sea)
-// tras "Última actualización:" hasta el próximo bloque claro (doble salto de línea)
-// o fin del body. Si no matchea → exit(1).
-// [\s\S]+?   → captura lazy cualquier char incluyendo newlines.
-// (?=\n\s*\n|$) → lookahead: termina en próximo bloque vacío (doble \n) o fin.
-const UPDATE_REGEX = /Última actualización:\s*([\s\S]+?)(?=\n\s*\n|$)/;
-
 
 // ============================================================
-// PARTE 1: SCRAPING
+// PARTE 1: CONFIGURACIÓN DE SITIOS
 // ============================================================
 
 /**
- * Descarga el HTML de la URL objetivo con un User-Agent realista.
+ * Carga y valida la lista de sitios desde sites.json.
+ * @returns {Promise<Array<{id: string, name: string, url: string}>>}
+ * @throws si el fichero no existe, no es JSON válido, o falta id/name/url.
+ */
+async function loadSites() {
+  const raw = await readFile(SITES_FILE, "utf8");
+  const parsed = JSON.parse(raw);
+  if (!Array.isArray(parsed.sites)) {
+    throw new Error("sites.json debe contener { sites: [...] }");
+  }
+  for (const s of parsed.sites) {
+    if (!s.id || !s.name || !s.url) {
+      throw new Error(`Sitio inválido: ${JSON.stringify(s)}`);
+    }
+  }
+  return parsed.sites;
+}
+
+
+// ============================================================
+// PARTE 2: SCRAPING
+// ============================================================
+
+/**
+ * HEAD request para inspeccionar Last-Modified y ETag sin descargar el body.
  * @param {string} url
- * @returns {Promise<string>} HTML completo
- * @throws {Error} si la petición falla o el status no es 200
+ * @returns {Promise<{lastModified: string|null, etag: string|null}>}
+ */
+async function fetchHead(url) {
+  const response = await axios.head(url, {
+    headers: { "User-Agent": USER_AGENT },
+    timeout: HEAD_TIMEOUT_MS,
+    validateStatus: () => true, // no tirar en 4xx/5xx; queremos leer headers si los hay
+  });
+  return {
+    lastModified: response.headers["last-modified"] || null,
+    etag: response.headers["etag"] || null,
+  };
+}
+
+/**
+ * GET request del HTML completo.
+ * @param {string} url
+ * @returns {Promise<string>}
+ * @throws {Error} si la petición falla o el status no es 2xx
  */
 async function fetchPage(url) {
   const response = await axios.get(url, {
     headers: { "User-Agent": USER_AGENT },
-    timeout: HTTP_TIMEOUT_MS,
+    timeout: GET_TIMEOUT_MS,
     responseType: "text",
     validateStatus: (status) => status >= 200 && status < 300,
   });
@@ -46,86 +83,99 @@ async function fetchPage(url) {
 
 
 // ============================================================
-// PARTE 2: LÓGICA DE BÚSQUEDA DE ACTUALIZACIÓN
+// PARTE 3: DETECCIÓN DE FINGERPRINT (híbrido HEAD-first + hash-fallback)
 // ============================================================
 
 /**
- * Extrae la fecha de "Última actualización" del HTML.
+ * Normaliza el HTML y calcula su SHA-256.
+ * - Quita <script>, <style>, comentarios HTML.
+ * - Extrae solo el texto visible.
+ * - Colapsa whitespace y trim.
  * @param {string} html
- * @returns {string} fecha exacta (texto) encontrada en la web
- * @throws {Error} si la regex no encuentra el fragmento esperado
+ * @returns {string} hex SHA-256 (64 chars)
  */
-function extractUpdateDate(html) {
+function normalizeAndHash(html) {
   const $ = cheerio.load(html);
+  $("script, style").remove();
+  // Quitar comentarios HTML
+  $("*").contents().filter((_, n) => n.type === "comment").remove();
   const text = $("body").text();
-  const match = text.match(UPDATE_REGEX);
+  const collapsed = text.replace(/\s+/g, " ").trim();
+  return createHash("sha256").update(collapsed).digest("hex");
+}
 
-  if (!match || !match[1]) {
-    throw new Error(
-      "No se encontró el fragmento 'Última actualización: ...' en la página. " +
-        "Revisa si la web cambió de estructura."
-    );
+/**
+ * Detecta el fingerprint de un sitio.
+ * Estrategia:
+ *   1) HEAD → si lastModified presente, devuelve { tipo: "last-modified", valor }.
+ *   2) Si no, si etag presente, devuelve { tipo: "etag", valor }.
+ *   3) Si no, GET → normalizeAndHash → { tipo: "sha256", valor }.
+ * @param {{id: string, url: string}} site
+ * @returns {Promise<{tipo: string, valor: string, detectionMethod: string}>}
+ */
+async function detectFingerprint(site) {
+  const { lastModified, etag } = await fetchHead(site.url);
+
+  if (lastModified) {
+    return { tipo: "last-modified", valor: lastModified, detectionMethod: "last-modified" };
   }
-  return match[1].trim();
+  if (etag) {
+    return { tipo: "etag", valor: etag, detectionMethod: "etag" };
+  }
+
+  const html = await fetchPage(site.url);
+  const hash = normalizeAndHash(html);
+  return { tipo: "sha256", valor: hash, detectionMethod: "sha256" };
 }
 
 
 // ============================================================
-// PARTE 3: NOTIFICACIÓN (Telegram Bot API)
+// PARTE 4: PERSISTENCIA ATÓMICA
 // ============================================================
 
 /**
- * Envía una notificación a Telegram cuando se detecta un cambio.
- * Lee TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID de las variables de entorno
- * (configuradas como secrets en GitHub Environment "main").
- *
- * @param {string} newDate  Contenido nuevo detectado (fecha, nombre, código, lo que sea)
- * @param {string} url      URL monitorizada
- * @returns {Promise<void>}
- * @throws {Error} si faltan env vars o si la API de Telegram devuelve error
+ * Lee el fingerprint almacenado para un sitio.
+ * Formato del fichero: "<tipo>\n<valor>\n".
+ * @param {string} siteId
+ * @returns {Promise<{tipo: string, valor: string}|null>}
  */
-async function notifyChange(newDate, url) {
-  const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-
-  if (!botToken || !chatId) {
-    throw new Error(
-      "Faltan variables de entorno para Telegram. " +
-        "Configura TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID como secrets " +
-        "en el GitHub Environment 'main' (o como env vars locales)."
-    );
+async function loadStoredFingerprint(siteId) {
+  try {
+    const raw = await readFile(`${STATE_DIR}/${siteId}.fingerprint`, "utf8");
+    const [tipo, valor] = raw.trim().split("\n");
+    return { tipo, valor };
+  } catch (err) {
+    if (err.code === "ENOENT") return null;
+    throw err;
   }
+}
 
-  const message = [
-    "🔔 *Cambio detectado — Oposiciones Maestros CM*",
-    "",
-    "*Nueva fecha de actualización:*",
-    "`" + newDate + "`",
-    "",
-    "*URL:*",
-    url,
-  ].join("\n");
+/**
+ * Persiste el fingerprint de un sitio de forma atómica.
+ * Escribe en <siteId>.fingerprint.tmp y luego rename → <siteId>.fingerprint.
+ * @param {string} siteId
+ * @param {{tipo: string, valor: string}} fingerprint
+ */
+async function saveStoredFingerprint(siteId, fingerprint) {
+  const finalPath = `${STATE_DIR}/${siteId}.fingerprint`;
+  const tmpPath = `${finalPath}.tmp`;
+  await writeFile(tmpPath, `${fingerprint.tipo}\n${fingerprint.valor}\n`, "utf8");
+  await rename(tmpPath, finalPath);
+}
 
-  const apiUrl = "https://api.telegram.org/bot" + botToken + "/sendMessage";
 
-  const response = await axios.post(
-    apiUrl,
-    {
-      chat_id: chatId,
-      text: message,
-      parse_mode: "Markdown",
-      disable_web_page_preview: true,
-    },
-    {
-      timeout: HTTP_TIMEOUT_MS,
-      validateStatus: (status) => status >= 200 && status < 300,
-    }
-  );
+// ============================================================
+// PARTE 5: NOTIFICACIÓN (STUB — se implementa en task-302)
+// ============================================================
 
-  if (!response.data || response.data.ok !== true) {
-    throw new Error(
-      "Telegram API devolvió error: " + JSON.stringify(response.data)
-    );
+/**
+ * STUB temporal. En task-302 se reemplaza por envío real a Telegram.
+ * @param {Array<object>} summary
+ */
+function sendTelegramSummary(summary) {
+  console.log("[monitor] (STUB) Resumen que se enviará a Telegram:");
+  for (const item of summary) {
+    console.log("  -", JSON.stringify(item));
   }
 }
 
@@ -134,38 +184,39 @@ async function notifyChange(newDate, url) {
 // ORQUESTACIÓN
 // ============================================================
 
-async function readState() {
-  const content = await readFile(STATE_FILE, "utf8");
-  const trimmed = content.trim();
-  if (!trimmed) {
-    throw new Error(`El archivo ${STATE_FILE} está vacío.`);
-  }
-  return trimmed;
-}
-
-async function writeState(value) {
-  await writeFile(STATE_FILE, value, "utf8");
-}
-
 async function main() {
-  console.log(`[monitor] Iniciando check de ${TARGET_URL}`);
+  const sites = await loadSites();
+  console.log(`[monitor] Sitios configurados: ${sites.length}`);
 
-  const previousDate = await readState();
-  console.log(`[monitor] Fecha anterior (state.txt): ${previousDate}`);
+  const summary = [];
 
-  const html = await fetchPage(TARGET_URL);
-  const currentDate = extractUpdateDate(html);
-  console.log(`[monitor] Fecha actual (web):           ${currentDate}`);
+  for (const site of sites) {
+    console.log(`[monitor] Procesando: ${site.id} (${site.url})`);
 
-  if (currentDate === previousDate) {
-    console.log("[monitor] Sin cambios. Todo sigue igual.");
-    return;
+    const currentFingerprint = await detectFingerprint(site);
+    const previousFingerprint = await loadStoredFingerprint(site.id);
+
+    const changed =
+      previousFingerprint !== null &&
+      (previousFingerprint.tipo !== currentFingerprint.tipo ||
+        previousFingerprint.valor !== currentFingerprint.valor);
+
+    await saveStoredFingerprint(site.id, currentFingerprint);
+
+    summary.push({
+      siteId: site.id,
+      name: site.name,
+      url: site.url,
+      changed,
+      detectionMethod: currentFingerprint.tipo,
+      fingerprintPreview: currentFingerprint.valor.slice(0, 12) + "…",
+      previousPreview: previousFingerprint
+        ? previousFingerprint.valor.slice(0, 12) + "…"
+        : null,
+    });
   }
 
-  console.log(`[monitor] ¡Cambio detectado!`);
-  await notifyChange(currentDate, TARGET_URL);
-  await writeState(currentDate);
-  console.log(`[monitor] state.txt actualizado a: ${currentDate}`);
+  sendTelegramSummary(summary);
 }
 
 main().catch((err) => {

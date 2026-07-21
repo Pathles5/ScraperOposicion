@@ -18,3 +18,9 @@ SESSION_CONTEXT.md
 
 # OpenCode runtime (si existe)
 .opencode/node_modules/
+
+# Estado runtime del monitor (Fase 3)
+state/*.fingerprint
+state/*.fingerprint.tmp
+state/.initialized
+logs/*.log

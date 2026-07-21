@@ -1,0 +1,14 @@
+{
+  "sites": [
+    {
+      "id": "cm-educacion",
+      "name": "CM Educacion — Procesos selectivos maestros",
+      "url": "https://www.comunidad.madrid/educacion/procesos-selectivos-oposiciones-maestros"
+    },
+    {
+      "id": "cm-sede-oposiciones-2026",
+      "name": "CM Sede — Oferta empleo oposiciones maestros 2026",
+      "url": "https://sede.comunidad.madrid/oferta-empleo/oposiciones-maestros-2026"
+    }
+  ]
+}
