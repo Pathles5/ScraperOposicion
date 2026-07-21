@@ -13,6 +13,7 @@ import * as cheerio from "cheerio";
 
 const SITES_FILE = ".opencode/config/sites.json";
 const STATE_DIR = "state";
+const INIT_FLAG = `${STATE_DIR}/.initialized`;
 const HEAD_TIMEOUT_MS = 10_000;
 const GET_TIMEOUT_MS = 30_000;
 const USER_AGENT =
@@ -165,17 +166,109 @@ async function saveStoredFingerprint(siteId, fingerprint) {
 
 
 // ============================================================
-// PARTE 5: NOTIFICACIÓN (STUB — se implementa en task-302)
+// PARTE 5: DETECCIÓN DE PRIMERA EJECUCIÓN (D15)
 // ============================================================
 
 /**
- * STUB temporal. En task-302 se reemplaza por envío real a Telegram.
- * @param {Array<object>} summary
+ * Comprueba si es la primera ejecución del monitor
+ * (ausencia del flag `state/.initialized`).
+ * @returns {Promise<boolean>} true si NO existe el flag (primera vez).
+ * @throws si el error de lectura no es ENOENT.
  */
-function sendTelegramSummary(summary) {
-  console.log("[monitor] (STUB) Resumen que se enviará a Telegram:");
+async function isFirstRun() {
+  try {
+    await readFile(INIT_FLAG, "utf8");
+    return false;
+  } catch (err) {
+    if (err.code === "ENOENT") return true;
+    throw err;
+  }
+}
+
+/**
+ * Marca que el monitor ya se ha ejecutado al menos una vez.
+ * Persiste la fecha ISO actual en `state/.initialized`.
+ */
+async function markInitialized() {
+  await writeFile(INIT_FLAG, new Date().toISOString(), "utf8");
+}
+
+
+// ============================================================
+// PARTE 6: NOTIFICACIÓN TELEGRAM (always-notify + Markdown)
+// ============================================================
+
+/**
+ * Envía un mensaje Markdown a Telegram con el estado de los N sitios.
+ * Se invoca SIEMPRE (D3 + D7), haya cambios o no.
+ * Si firstRun=true, el mensaje incluye cabecera "🟢 Monitor arrancado".
+ *
+ * @param {Array<object>} summary  Uno por sitio (ver forma en task-301).
+ * @param {{firstRun: boolean}} opts
+ * @returns {Promise<void>}
+ * @throws si faltan env vars o si Telegram API devuelve error.
+ */
+async function sendTelegramSummary(summary, { firstRun }) {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+
+  if (!botToken || !chatId) {
+    throw new Error(
+      "Faltan variables de entorno para Telegram. " +
+        "Configura TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID en el entorno " +
+        "de la Raspberry (systemd EnvironmentFile=) o en .env local."
+    );
+  }
+
+  const now = new Date().toISOString().replace("T", " ").slice(0, 16) + " UTC";
+
+  const lines = [];
+  lines.push(firstRun ? "🟢 *Monitor arrancado*" : "🛰 *Monitor oposiciones CM*");
+  lines.push(`_${now}_`);
+  lines.push("");
+
   for (const item of summary) {
-    console.log("  -", JSON.stringify(item));
+    const status = item.changed ? "🔔 *CAMBIO DETECTADO*" : "✓ sin cambios";
+    lines.push(`• *${item.name}*`);
+    lines.push(`  ${status}`);
+    lines.push(`  método: \`${item.detectionMethod}\``);
+    lines.push(`  fingerprint: \`${item.fingerprintPreview}\``);
+    if (item.changed && item.previousPreview) {
+      lines.push(`  anterior:    \`${item.previousPreview}\``);
+    }
+    lines.push(`  url: ${item.url}`);
+    lines.push("");
+  }
+
+  if (firstRun) {
+    lines.push("Próximo check en 5 min. A partir de ahora recibirás un mensaje por poll (288/día).");
+  } else {
+    const cambios = summary.filter((s) => s.changed).length;
+    if (cambios > 0) {
+      lines.push(`⚠️ ${cambios} de ${summary.length} sitios cambiaron.`);
+    }
+    lines.push("Próximo check en 5 min.");
+  }
+
+  const message = lines.join("\n");
+
+  const apiUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
+  const response = await axios.post(
+    apiUrl,
+    {
+      chat_id: chatId,
+      text: message,
+      parse_mode: "Markdown",
+      disable_web_page_preview: true,
+    },
+    {
+      timeout: GET_TIMEOUT_MS,
+      validateStatus: (status) => status >= 200 && status < 300,
+    }
+  );
+
+  if (!response.data || response.data.ok !== true) {
+    throw new Error(`Telegram API devolvió error: ${JSON.stringify(response.data)}`);
   }
 }
 
@@ -188,6 +281,7 @@ async function main() {
   const sites = await loadSites();
   console.log(`[monitor] Sitios configurados: ${sites.length}`);
 
+  const firstRun = await isFirstRun();
   const summary = [];
 
   for (const site of sites) {
@@ -216,7 +310,10 @@ async function main() {
     });
   }
 
-  sendTelegramSummary(summary);
+  if (firstRun) {
+    await markInitialized();
+  }
+  await sendTelegramSummary(summary, { firstRun });
 }
 
 main().catch((err) => {
