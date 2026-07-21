@@ -80,6 +80,38 @@ Entregables:
 
 ---
 
+## Fase 3: Scraper local en Raspberry Pi (multi-site + hash)
+
+**Estado:** Completado
+**Fecha:** 2026-07-22
+
+Entregables:
+
+- `monitor.js` → refactor a multi-site con detección híbrida HEAD-first / SHA-256 (fallback).
+- `.opencode/config/sites.json` → 2 webs declaradas (CM Educacion + CM Sede).
+- `state/<siteId>.fingerprint` → persistencia por sitio (atomic write).
+- `sendTelegramSummary` → 1 mensaje Markdown con N sitios, política always-notify (288/día).
+- `scripts/raspberry/{scraper.service, scraper.timer, install.sh, uninstall.sh, README.md, telegram.env.example}` → setup systemd.
+- `logs/scraper.log` → fichero rotado (1 MB → 500 KB).
+- `.github/workflows/monitor.yml` → cron desactivado, queda como legacy.
+
+Fixes incluidos en Fase 3:
+
+- n/a (cambios mayores, no fixes).
+
+HANDOFF(s):
+
+- `.opencode/tasks/HANDOFF-FASE-3.md`
+
+Tasks:
+
+- `.opencode/tasks/task-301-multi-site-detection.md`
+- `.opencode/tasks/task-302-telegram-always-notify.md`
+- `.opencode/tasks/task-303-systemd-setup.md`
+- `.opencode/tasks/task-304-cleanup-docs-adrs.md`
+
+---
+
 <!-- Plantilla para nuevas fases:
 
 ## Fase X: <título>

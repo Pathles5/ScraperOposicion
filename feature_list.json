@@ -1,15 +1,50 @@
-﻿{
+{
   "project": "scraper-oposicion",
-  "version": "1.0",
-  "last_updated": "2026-07-20",
+  "version": "1.1",
+  "last_updated": "2026-07-22",
   "features": [
+    {
+      "id": "raspberry-local-scraper",
+      "name": "Scraper local en Raspberry Pi con systemd timer",
+      "phase": 3,
+      "status": "completed",
+      "completed_at": "2026-07-22",
+      "description": "El scraper se ejecuta en una Raspberry Pi local con systemd timer + service (cada 5 min). Logs a journalctl + fichero rotado. Variables de entorno via /etc/scraper-oposicion/telegram.env. Workflow GH Actions desactivado (legacy).",
+      "files": [
+        "scripts/raspberry/scraper.service",
+        "scripts/raspberry/scraper.timer",
+        "scripts/raspberry/install.sh",
+        "scripts/raspberry/uninstall.sh",
+        "scripts/raspberry/README.md",
+        "scripts/raspberry/telegram.env.example",
+        ".github/workflows/monitor.yml"
+      ],
+      "task_ref": ".opencode/tasks/task-303-systemd-setup.md",
+      "handoff_ref": ".opencode/tasks/HANDOFF-FASE-3.md"
+    },
+    {
+      "id": "multi-site-hash",
+      "name": "Deteccion multi-site por fingerprint hibrido",
+      "phase": 3,
+      "status": "completed",
+      "completed_at": "2026-07-22",
+      "description": "monitor.js monitoriza N webs declaradas en .opencode/config/sites.json. Deteccion hibrida: HEAD-first (Last-Modified/ETag) con fallback a SHA-256 sobre HTML normalizado. Persistencia atomica en state/<siteId>.fingerprint. Politica always-notify: 1 mensaje Markdown por poll con el estado de todas las webs.",
+      "files": [
+        "monitor.js",
+        ".opencode/config/sites.json",
+        "state/.gitkeep",
+        ".gitignore"
+      ],
+      "task_ref": ".opencode/tasks/task-301-multi-site-detection.md",
+      "handoff_ref": ".opencode/tasks/HANDOFF-FASE-3.md"
+    },
     {
       "id": "monitor-cm-edu",
       "name": "Monitor CM Educacion (oposiciones maestros)",
       "phase": 1,
       "status": "completed",
       "completed_at": "2026-07-20",
-      "description": "Bot autonomo que monitoriza https://www.comunidad.madrid/educacion/procesos-selectivos-oposiciones-maestros y detecta cambios en el contenido de 'Ultima actualizacion:' mediante regex agnostica. Si cambia, llama notifyChange (Telegram en Fase 2) y actualiza state.txt. GitHub Actions ejecuta cada 30 min en :05/:35 UTC.",
+      "description": "Bot autonomo que monitoriza https://www.comunidad.madrid/educacion/procesos-selectivos-oposiciones-maestros y detecta cambios en el contenido de 'Ultima actualizacion:' mediante regex agnostica. Si cambia, llama notifyChange (Telegram en Fase 2) y actualiza state.txt. GitHub Actions ejecuta cada 30 min en :05/:35 UTC. (Reemplazado por multi-site-hash en Fase 3.)",
       "files": [
         "monitor.js",
         "state.txt",
@@ -26,7 +61,7 @@
       "phase": 2,
       "status": "completed",
       "completed_at": "2026-07-20",
-      "description": "Cuando el monitor detecta un cambio, envia un mensaje Markdown al chat de Telegram configurado via Telegram Bot API (POST a /sendMessage). Lee TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID de process.env. Throw claro si faltan. Bot del usuario: @OposicionCamBot.",
+      "description": "Cuando el monitor detecta un cambio, envia un mensaje Markdown al chat de Telegram configurado via Telegram Bot API (POST a /sendMessage). Lee TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID de process.env. Throw claro si faltan. Bot del usuario: @OposicionCamBot. (Sustituido por sendTelegramSummary en Fase 3.)",
       "files": [
         "monitor.js",
         ".github/workflows/monitor.yml"
@@ -52,9 +87,16 @@
       "status": "completed",
       "completed_at": "2026-07-20",
       "features": ["telegram-notify"]
+    },
+    "3": {
+      "name": "Scraper local en Raspberry Pi (multi-site + hash)",
+      "status": "completed",
+      "completed_at": "2026-07-22",
+      "features": ["raspberry-local-scraper", "multi-site-hash"]
     }
   },
   "next_actions": [
-    "Push a GitHub y validar primer workflow_dispatch con notificacion real a Telegram."
+    "Validar el deploy en la Raspberry Pi real ejecutando scripts/raspberry/install.sh y comprobando systemctl status scraper.timer.",
+    "Tras 24h en producción, revisar logs/scraper.log y journalctl para validar que no hay falsos positivos."
   ]
 }

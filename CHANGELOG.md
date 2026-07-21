@@ -6,6 +6,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [Fase 3] — 2026-07-22 — Scraper local en Raspberry Pi (multi-site)
+
+### Added
+- Detección de cambios **híbrida HEAD-first con fallback a hash SHA-256** sobre HTML normalizado (cheerio). Funciona con y sin headers `Last-Modified` / `ETag`.
+- Soporte **multi-site**: lista declarativa en `.opencode/config/sites.json`. Añadir/quitar webs no requiere tocar código.
+- Monitorizan **2 webs**: CM Educacion (oposiciones maestros) y CM Sede (oferta empleo oposiciones 2026).
+- **systemd timer + service** para scheduling cada 5 min en Raspberry Pi (`scripts/raspberry/`).
+- Script de instalación idempotente (`scripts/raspberry/install.sh`).
+- Logging dual: `journalctl` + fichero rotado `logs/scraper.log` (1 MB → trunca a 500 KB).
+- Mensaje "🟢 Monitor arrancado" la primera ejecución (D15).
+- Persistencia atómica del fingerprint (`writeFile` + `rename`, D16).
+- 4 ADRs nuevos: ADR-003 (Raspberry vs GH Actions), ADR-004 (hash vs regex), ADR-005 (systemd vs cron), ADR-006 (ficheros vs SQLite).
+
+### Changed
+- Política de notificación: pasa de "solo si hay cambio" a **siempre notificar** (288 mensajes/día por diseño).
+- Formato del mensaje: 1 único mensaje Markdown con el estado de las N webs.
+- Estado persistido en `state/<siteId>.fingerprint` (sustituye a `state.txt` versionado).
+
+### Removed
+- Regex agnóstica de Fase 1 (`UPDATE_REGEX`, `extractUpdateDate`).
+- Función `notifyChange` de Fase 2 (sustituida por `sendTelegramSummary`).
+- Cron del workflow `.github/workflows/monitor.yml` (queda comentado, ver nota legacy).
+
+### Fixed
+- n/a.
+
+### Notes
+- Bot en Telegram: `@OposicionCamBot` (mismo de Fase 2).
+- Workflow GH Actions queda como **legacy** para `workflow_dispatch` manual.
+
 ### Added (Fase 1 — Monitor CM Educacion)
 - `monitor.js`: monitor de oposiciones de la Comunidad de Madrid con tres secciones claramente diferenciadas:
   - **SCRAPING** — `fetchPage(url)`: axios con User-Agent Mozilla, timeout 30s, validateStatus 2xx.

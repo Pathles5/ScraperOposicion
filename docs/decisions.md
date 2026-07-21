@@ -28,6 +28,106 @@
 
 -->
 
+## ADR-003: Scraper ejecutado en Raspberry Pi local vs GitHub Actions
+
+**Fecha:** 2026-07-22
+**Estado:** Aceptado
+
+### Contexto
+El scraper llevaba dos fases corriendo en GitHub Actions (cron cada 30 min). El usuario quiere migrar a una Raspberry Pi local para tener control total, evitar límites de minutos gratis de GH Actions y poder iterar más rápido.
+
+### Decisión
+El scraper se ejecuta en una Raspberry Pi local con systemd timer (cada 5 min). GitHub Actions queda como legacy desactivado (cron comentado, solo `workflow_dispatch` manual).
+
+### Alternativas consideradas
+- **Seguir en GitHub Actions** — funciona pero limita la frecuencia (free tier = 2000 min/mes, con cron cada 5 min × 288 polls/día × 30 días = suficiente pero con poco margen) y bloquea iteración.
+- **Raspberry Pi + cron** — más simple que systemd pero no espera a la red y no tiene `Restart=on-failure` (ver ADR-005).
+- **VPS externo** — más caro y expone el scraper a internet.
+
+### Consecuencias
+- **Positivas**: control total del entorno, polling más frecuente (5 min vs 30), independiente de GH Actions, logs locales.
+- **Negativas**: requiere mantener la Pi encendida y con red; un reinicio requiere que systemd reanude automáticamente (lo hace con `Wants=network-online.target`).
+- **Neutras**: el repo sigue siendo el source-of-truth; `state/` y `logs/` se generan en runtime.
+
+---
+
+## ADR-004: Detección de cambios por fingerprint híbrido (HEAD-first + hash-fallback) vs regex
+
+**Fecha:** 2026-07-22
+**Estado:** Aceptado
+
+### Contexto
+Fase 1 implementó una regex agnóstica que capturaba cualquier contenido tras "Última actualización:". Esto requirió 2 fixes (task-102 tolerante a multi-línea, task-103 agnóstica al formato). El usuario quiere pasar a una detección más robusta que no dependa de un patrón textual concreto y que soporte webs sin esa etiqueta.
+
+### Decisión
+Se adopta detección por **fingerprint**:
+1. Petición HEAD; si `Last-Modified` o `ETag` están presentes → guardar y comparar.
+2. Si no → GET + SHA-256 sobre HTML normalizado (cheerio elimina `<script>`, `<style>`, comentarios; collapse whitespace).
+
+El fingerprint se guarda en `state/<siteId>.fingerprint` con formato `<tipo>\n<valor>\n`.
+
+### Alternativas consideradas
+- **Mantener regex agnóstica** — frágil ante cambios de estructura HTML.
+- **Hash SHA-256 del HTML crudo sin normalizar** — demasiados falsos positivos por contenido dinámico (analytics, session IDs).
+- **Solo HEAD** — depende de que el servidor envíe headers, no todas las webs lo hacen.
+- **Diff visual (rendered HTML)** — overkill para este caso.
+
+### Consecuencias
+- **Positivas**: detecta CUALQUIER cambio, no solo el de "Última actualización:"; funciona en webs sin esa etiqueta; universal.
+- **Negativas**: descarga el body cuando no hay headers (más bandwidth); puede tener falsos positivos si la web tiene banners rotativos muy agresivos (mitigado por normalización).
+- **Neutras**: en sitios con `Last-Modified` válido, el ahorro de bandwidth es notable (HEAD no transfiere body).
+
+---
+
+## ADR-005: Scheduling con systemd timer + service vs cron
+
+**Fecha:** 2026-07-22
+**Estado:** Aceptado
+
+### Contexto
+La Raspberry Pi ejecuta Linux con systemd (Raspberry Pi OS, basado en Debian 12). Necesitamos lanzar `node monitor.js` cada 5 minutos de forma resiliente.
+
+### Decisión
+Se usa **systemd timer + service** (`scripts/raspberry/scraper.service` + `scraper.timer`).
+
+### Alternativas consideradas
+- **cron tradicional** — más simple mentalmente (1 línea en crontab) pero:
+  - No espera a la red (`After=network-online.target` sí lo hace).
+  - Logs dispersos (systemd journal vs syslog/var/log).
+  - Sin `Restart=on-failure` automático.
+- **node-cron en proceso long-lived** — añade dependencia npm y punto único de fallo (si muere el proceso, no se reinicia sin supervisor).
+- **Docker + cron interno** — añade complejidad innecesaria para 1 binario.
+
+### Consecuencias
+- **Positivas**: red-espera, logs centralizados (`journalctl -u scraper.service -f`), restart ante fallos, comandos uniformes (`systemctl enable/disable/status`).
+- **Negativas**: 2 ficheros extra (`.service` + `.timer`) frente a 1 línea en crontab.
+- **Neutras**: requiere usuario con `sudo` para `install.sh`. Una vez instalado, el usuario corriente puede inspeccionar con `systemctl` y `journalctl`.
+
+---
+
+## ADR-006: Persistencia de estado con ficheros planos vs SQLite
+
+**Fecha:** 2026-07-22
+**Estado:** Aceptado
+
+### Contexto
+Fase 1-2 usaban `state.txt` versionado en el repo (1 línea con la fecha). Fase 3 monitoriza N webs, así que el estado pasa a ser N fingerprints. Necesitamos decidir cómo persistir.
+
+### Decisión
+Cada sitio tiene su propio fichero en `state/<siteId>.fingerprint`, formato `<tipo>\n<valor>\n` (donde `tipo` ∈ `{last-modified, etag, sha256}`). Directorio `state/` está en `.gitignore` (con `.gitkeep` para preservar el dir). Escritura atómica: `writeFile(.tmp)` → `rename(.tmp, final)`.
+
+### Alternativas consideradas
+- **SQLite (better-sqlite3)** — más robusto para futuro histórico de cambios (timestamps, diffs), pero añade dependencia nativa que complica el deploy en Pi.
+- **Un único JSON en `state/state.json`** — más fácil de volcar a un dashboard pero pierde atomicidad si N escrituras concurrentes (no aplica aquí porque es secuencial, pero queremos margen).
+- **Variables de entorno / en memoria** — falsos positivos en cada reinicio.
+
+### Consecuencias
+- **Positivas**: cero dependencias, depurable con `cat`/`ls`, sobrevive reboots, escritura atómica evita corrupciones.
+- **Negativas**: no hay histórico de cambios (solo el último fingerprint por sitio). Si en el futuro se quiere diff histórico, hay que migrar a SQLite (sería una nueva ADR).
+- **Neutras**: el flag de "primera ejecución" (`state/.initialized`) vive en el mismo directorio.
+
+---
+
 ## ADR-001: Bootstrap con agent swarm y Spec-Driven Development (SDD)
 
 **Fecha:** 2026-07-20

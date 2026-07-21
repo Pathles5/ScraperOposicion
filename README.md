@@ -1,16 +1,16 @@
 ﻿# scraper-oposicion
 
-> Bot autónomo que monitoriza la página de procesos selectivos de oposiciones a maestros de la Comunidad de Madrid y alerta cuando cambia la fecha de "Última actualización".
+> Monitor multi-site de oposiciones CM ejecutándose en Raspberry Pi
 
 ## What is scraper-oposicion?
 
 `scraper-oposicion` es un monitor ligero escrito en Node.js (ESM) que:
 
-1. Descarga el HTML de la página objetivo cada 30 minutos (GitHub Actions cron).
-2. Extrae la fecha de "Última actualización" con una regex estricta.
-3. Compara con el valor guardado en `state.txt`.
-4. Si cambia, notifica (Fase 2 — Telegram Bot API) y persiste el nuevo estado en `state.txt`.
-5. El workflow hace commit/push automático de `state.txt` con `github-actions[bot]`.
+1. Carga una lista declarativa de N webs desde `.opencode/config/sites.json`.
+2. Cada 5 minutos (systemd timer en la Raspberry Pi) itera sobre cada sitio.
+3. Detecta cambios con estrategia **híbrida**: HEAD-first (`Last-Modified`/`ETag`) con fallback a SHA-256 sobre HTML normalizado.
+4. Persiste el fingerprint por sitio en `state/<siteId>.fingerprint` (escritura atómica).
+5. Envía **siempre** un mensaje Markdown a Telegram con el estado de las N webs (`sendTelegramSummary`).
 
 ## Getting Started
 
@@ -29,7 +29,7 @@ pnpm start        # Ejecuta el monitor una vez (node monitor.js)
 pnpm lint         # Pasa ESLint
 ```
 
-Para probarlo contra la página real necesitas `state.txt` con la fecha actual en disco. Si solo quieres validar sintaxis:
+Para probarlo contra las páginas reales necesitas las variables `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID` en el entorno. Si solo quieres validar sintaxis:
 ```bash
 node --check monitor.js
 ```
@@ -41,17 +41,30 @@ pnpm lint
 
 > **Nota:** Este proyecto **no incluye suite de tests** (ver [ADR-002](docs/decisions.md)).
 
-## GitHub Actions
+## Running locally on Raspberry Pi
 
-El workflow [`.github/workflows/monitor.yml`](.github/workflows/monitor.yml) ejecuta el monitor:
+El scraper se ejecuta en una Raspberry Pi con systemd timer (cada 5 min).
+Para desplegar:
 
-- **Cron**: `*/30 * * * *` (cada 30 minutos).
-- **Manual**: pestaña Actions → "Run workflow".
-- **Entorno**: `ubuntu-latest`, Node 20, pnpm 9 con cache.
-- **Persistencia**: `permissions: contents: write` + commit/push idempotente de `state.txt` con `github-actions[bot]`.
-- **Concurrencia**: grupo `monitor-cm` (runs concurrentes se serializan).
+1. Clonar el repo en `/opt/scraper-oposicion`.
+2. Configurar credenciales en `/etc/scraper-oposicion/telegram.env`.
+3. Ejecutar `./scripts/raspberry/install.sh`.
 
-Para activar Fase 2 (Telegram) añade los secrets `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID` en Settings → Secrets → Actions.
+Detalle completo: [`scripts/raspberry/README.md`](scripts/raspberry/README.md).
+
+### Useful commands
+
+```bash
+systemctl status scraper.timer          # estado del timer
+systemctl list-timers scraper.timer     # próxima ejecución
+journalctl -u scraper.service -f        # logs en vivo
+tail -f /opt/scraper-oposicion/logs/scraper.log   # logs fichero rotado
+```
+
+### GitHub Actions (legacy)
+
+El workflow `.github/workflows/monitor.yml` está desactivado (cron comentado) y solo
+se ejecuta vía `workflow_dispatch` manual. El bot principal corre en la Raspberry Pi.
 
 ## Project Structure
 
@@ -59,11 +72,18 @@ Para activar Fase 2 (Telegram) añade los secrets `TELEGRAM_BOT_TOKEN` y `TELEGR
 .
 ├── .github/
 │   └── workflows/
-│       └── monitor.yml       # Cron + workflow_dispatch + commit/push
+│       └── monitor.yml       # Legacy (cron desactivado, solo workflow_dispatch)
 ├── .opencode/                # Harness de agentes (no es producto)
+│   ├── agents/               # Definiciones de los 5 agentes
+│   ├── tasks/                # HANDOFF + tasks (archivados al cierre de fase)
+│   └── config/
+│       └── sites.json        # Lista declarativa de webs a monitorizar
 ├── docs/                     # Documentacion canonica
-├── monitor.js                # Entry point (3 partes: scraping, busqueda, notificacion)
-├── state.txt                 # Estado persistente (versionado)
+├── scripts/
+│   └── raspberry/            # Setup systemd (service + timer + install.sh + README)
+├── monitor.js                # Entry point multi-site
+├── state/                    # Estado runtime (gitignored): <siteId>.fingerprint + .initialized
+├── logs/                     # Logs runtime (gitignored): scraper.log rotado
 ├── package.json              # ESM, axios, cheerio
 ├── eslint.config.js          # ESLint 9 plano
 └── README.md
@@ -71,13 +91,17 @@ Para activar Fase 2 (Telegram) añade los secrets `TELEGRAM_BOT_TOKEN` y `TELEGR
 
 ## Architecture (monitor.js)
 
-El script está organizado en tres secciones claramente diferenciadas:
+El script está organizado en secciones claramente diferenciadas. La fuente de verdad arquitectónica es [`docs/architecture.md`](docs/architecture.md); este resumen es solo una vista rápida.
 
-| Sección | Función | Responsabilidad |
+| Sección | Funciones | Responsabilidad |
 |---|---|---|
-| **1. Scraping** | `fetchPage(url)` | Descarga HTML con axios + User-Agent Mozilla, timeout 30s. |
-| **2. Búsqueda** | `extractUpdateDate(html)` | Parsea con cheerio y aplica regex ESTRICTA `/Última actualización: ([^\n<]+)/`. Exit(1) si no matchea. |
-| **3. Notificación** | `notifyChange(date, url)` | Stub en Fase 1. Será Telegram en Fase 2. |
+| **1. Configuración** | `loadSites()` | Lee y valida `.opencode/config/sites.json` (id, name, url). |
+| **2. Scraping** | `fetchHead(url)`, `fetchPage(url)` | HEAD (sin body) o GET completo. |
+| **3. Detección de fingerprint** | `normalizeAndHash(html)`, `detectFingerprint(site)` | Híbrido HEAD-first → hash-fallback. |
+| **4. Persistencia** | `loadStoredFingerprint()`, `saveStoredFingerprint()` | Atomic write en `state/<siteId>.fingerprint`. |
+| **5. Primera ejecución** | `isFirstRun()`, `markInitialized()` | Flag en `state/.initialized`. |
+| **6. Notificación** | `sendTelegramSummary(summary, { firstRun })` | 1 mensaje Markdown por poll (always-notify). |
+| **7. Logging** | `logToFile()`, `logInfo()`, `logError()` | Dual: stdout (journalctl) + `logs/scraper.log` rotado. |
 
 ## Documentation
 
@@ -102,7 +126,8 @@ El script está organizado en tres secciones claramente diferenciadas:
 | HTTP Client | axios ^1.7.7 |
 | HTML Parser | cheerio ^1.0.0 |
 | Linting | ESLint 9 (flat config, sin Prettier) |
-| Automation | GitHub Actions (cron + workflow_dispatch) |
+| Automation | systemd timer + service en Raspberry Pi (GitHub Actions queda como legacy) |
+| Notification | Telegram Bot API (`@OposicionCamBot`) |
 | Tests | (no incluidos — ver ADR-002) |
 
 ## License

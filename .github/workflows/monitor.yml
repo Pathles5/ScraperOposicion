@@ -1,11 +1,16 @@
-name: Monitor CM Educacion
+name: Monitor Oposiciones CM
+
+# Legacy / fallback manual desde 2026-07-22 (Fase 3).
+# El cron está DESACTIVADO porque el bot ahora corre en una Raspberry Pi
+# con systemd timer (cada 5 min). Este workflow queda para ejecución manual
+# de emergencia (workflow_dispatch) o para validar el setup localmente.
+# Para reactivar, descomentar el bloque schedule: y dejar que la Pi siga corriendo
+# (¡generará doble notificación!).
 
 on:
-  schedule:
-    # Cada 30 minutos, en los minutos :05 y :35 (UTC)
-    - cron: "5,35 * * * *"
-  # Lanzamiento manual desde la pestaña Actions
   workflow_dispatch:
+  # schedule:
+  #   - cron: '5,35 * * * *'
 
 permissions:
   contents: write

@@ -38,21 +38,52 @@ Los agentes nunca importan adapters directamente. Usan identificadores lógicos 
 └── feature_list.json
 ```
 
-## Módulos
+## Componentes (Fase 3)
 
-> Se rellena cuando el usuario defina el primer módulo en una fase futura.
-
-| Módulo | Owns | Cannot Import |
-|---|---|---|
-| (pendiente) | — | — |
+- **Sites config** (`.opencode/config/sites.json`): declarativo, commiteable.
+- **State store** (`state/<siteId>.fingerprint`): fichero plano por sitio, escritura atómica.
+- **Detection engine** (`monitor.js`): híbrido HEAD-first / hash-fallback.
+- **Notifier** (`sendTelegramSummary` en `monitor.js`): 1 mensaje Markdown.
+- **Scheduler** (systemd): `scripts/raspberry/scraper.timer` + `scraper.service`.
+- **Logger** (dual): `journalctl` + `logs/scraper.log` rotado.
 
 ## Flujo de datos
 
 > Se documenta cuando exista un flujo end-to-end.
 
-## Diagrama de componentes
+## Flujo de ejecución (Fase 3)
 
-> Pendiente. Se añadirá un diagrama cuando haya al menos un módulo implementado.
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                       Raspberry Pi                                │
+│                                                                  │
+│  systemd timer (cada 5 min)                                      │
+│         │                                                        │
+│         ▼                                                        │
+│  systemd service (oneshot)                                       │
+│         │                                                        │
+│         ▼                                                        │
+│  node monitor.js                                                 │
+│     │                                                            │
+│     ├─ loadSites() ←── .opencode/config/sites.json              │
+│     │                                                            │
+│     └─ for each site:                                            │
+│          ├─ fetchHead(url) → { lastModified, etag }              │
+│          │   └─ Si presentes: usar como fingerprint              │
+│          ├─ else:                                                │
+│          │   ├─ fetchPage(url) → html                            │
+│          │   └─ normalizeAndHash(html) → sha256 (cheerio)        │
+│          ├─ loadStoredFingerprint(siteId) ← state/<id>.fp        │
+│          ├─ compare: changed = current !== previous              │
+│          ├─ saveStoredFingerprint(siteId, current)  [atomic]     │
+│          └─ registrar en summary                                 │
+│                                                                  │
+│  sendTelegramSummary(summary) → POST api.telegram.org           │
+│         │                                                        │
+│         ▼                                                        │
+│  exit 0                                                          │
+└──────────────────────────────────────────────────────────────────┘
+```
 
 ## Referencias
 
