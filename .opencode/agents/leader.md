@@ -1,13 +1,11 @@
----
+﻿---
 description: Líder del equipo. Gestiona tareas, valida con el usuario, coordina agentes. Único con acceso a git.
 mode: primary
 model: minimax/MiniMax-M3
 permission:
-  edit: deny
-  bash:
-    "git *": allow
-    "pnpm *": allow
-    "*": ask
+  edit: allow
+  bash: allow
+  webfetch: allow
 ---
 
 # Leader Agent

@@ -1,13 +1,13 @@
----
+﻿---
 description: Mantenedor de documentación. Mantiene docs/, README, CONTRIBUTING. (Nota: en la práctica el leader aplica docs directamente — ver §6 work-around.)
 mode: subagent
 model: minimax/MiniMax-M3
 permission:
-  edit: deny
+  edit: allow
   bash:
     "git *": deny
-    "pnpm lint": allow
-    "*": ask
+    "*": allow
+  webfetch: allow
 ---
 
 # Documenter Agent

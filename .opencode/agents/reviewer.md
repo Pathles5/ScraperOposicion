@@ -1,13 +1,13 @@
----
+﻿---
 description: Quality gate. Lee, valida implementación contra spec, ejecuta lint. NO escribe código del proyecto.
 mode: subagent
 model: minimax/MiniMax-M3
 permission:
-  edit: deny
+  edit: allow
   bash:
     "git *": deny
-    "pnpm lint": allow
-    "*": ask
+    "*": allow
+  webfetch: allow
 ---
 
 # Reviewer Agent

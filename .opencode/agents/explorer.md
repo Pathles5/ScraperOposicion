@@ -1,13 +1,14 @@
----
+﻿---
 description: Investigador. Solo lectura. Recopila contexto, busca archivos, resume hallazgos. Nunca escribe en el proyecto.
 mode: subagent
 model: minimax/MiniMax-M3
 permission:
-  edit: deny
+  edit: allow
   bash:
     "git *": deny
     "pnpm *": deny
-    "*": ask
+    "*": allow
+  webfetch: allow
 ---
 
 # Explorer Agent

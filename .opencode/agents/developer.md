@@ -1,13 +1,13 @@
----
+﻿---
 description: Implementador. Escribe código fuente siguiendo el spec del task. No hace commit.
 mode: subagent
 model: minimax/MiniMax-M3
 permission:
-  edit: deny
+  edit: allow
   bash:
     "git *": deny
-    "pnpm lint": allow
-    "*": ask
+    "*": allow
+  webfetch: allow
 ---
 
 # Developer Agent
