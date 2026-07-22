@@ -31,6 +31,16 @@ const LOG_KEEP_BYTES = 500_000;    // truncar a 500 KB
 
 
 // ============================================================
+// PARTE 0: CONFIGURACIÓN GLOBAL
+// ============================================================
+
+// SCRAPER_DEBUG=1 → notifica en CADA poll (haya cambios o no).
+// unset / cualquier otro valor → modo producción: solo notifica si hay cambios.
+const DEBUG =
+  process.env.SCRAPER_DEBUG === "1" || process.env.SCRAPER_DEBUG === "true";
+
+
+// ============================================================
 // PARTE 1: CONFIGURACIÓN DE SITIOS
 // ============================================================
 
@@ -204,12 +214,14 @@ async function markInitialized() {
 
 
 // ============================================================
-// PARTE 6: NOTIFICACIÓN TELEGRAM (always-notify + Markdown)
+// PARTE 6: NOTIFICACIÓN TELEGRAM (condicional + Markdown)
 // ============================================================
 
 /**
  * Envía un mensaje Markdown a Telegram con el estado de los N sitios.
- * Se invoca SIEMPRE (D3 + D7), haya cambios o no.
+ * La política de CUÁNDO invocar esta función está en main():
+ *   - Modo producción (default): solo si hay al menos un cambio.
+ *   - Modo debug (SCRAPER_DEBUG=1): siempre (incluyendo firstRun sin cambios).
  * Si firstRun=true, el mensaje incluye cabecera "🟢 Monitor arrancado".
  *
  * @param {Array<object>} summary  Uno por sitio (ver forma en task-301).
@@ -261,13 +273,21 @@ async function sendTelegramSummary(summary, { firstRun }) {
   }
 
   if (firstRun) {
-    lines.push("Próximo check en 5 min. A partir de ahora recibirás un mensaje por poll (288/día).");
+    // En producción (DEBUG=0) el primer poll NO envía (no hay previousFingerprint),
+    // así que este bloque solo se ejecuta en modo debug.
+    lines.push(
+      "Próximo check en 5 min. Modo debug activo: recibirás un mensaje por poll (288/día). " +
+        "Quita `SCRAPER_DEBUG=1` del entorno para volver a modo producción (solo notifica si hay cambios)."
+    );
   } else {
     const cambios = summary.filter((s) => s.changed).length;
     if (cambios > 0) {
       lines.push(`⚠️ ${cambios} de ${summary.length} sitios cambiaron.`);
     }
     lines.push("Próximo check en 5 min.");
+    if (DEBUG && cambios === 0) {
+      lines.push("_(modo debug: notificando aunque no haya cambios)_");
+    }
   }
 
   const message = lines.join("\n");
@@ -378,7 +398,23 @@ async function main() {
   if (firstRun) {
     await markInitialized();
   }
-  await sendTelegramSummary(summary, { firstRun });
+
+  // Política de notificación:
+  //   - Modo debug (SCRAPER_DEBUG=1): SIEMPRE envía, incluidos polls sin cambios.
+  //   - Modo producción (default): solo envía si AL MENOS un sitio cambió.
+  const hasChange = summary.some((s) => s.changed);
+  if (DEBUG) {
+    logInfo("[monitor] Modo DEBUG: notificando a Telegram aunque no haya cambios.");
+    await sendTelegramSummary(summary, { firstRun });
+  } else if (hasChange) {
+    const cambios = summary.filter((s) => s.changed).length;
+    logInfo(`[monitor] Cambio(s) detectado(s) en ${cambios} sitio(s). Notificando a Telegram.`);
+    await sendTelegramSummary(summary, { firstRun });
+  } else {
+    logInfo(
+      "[monitor] Sin cambios. No se envía mensaje a Telegram (modo producción)."
+    );
+  }
 }
 
 main().catch((err) => {

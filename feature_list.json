@@ -28,7 +28,7 @@
       "phase": 3,
       "status": "completed",
       "completed_at": "2026-07-22",
-      "description": "monitor.js monitoriza N webs declaradas en sites.json (raíz del repo). Deteccion hibrida: HEAD-first (Last-Modified/ETag) con fallback a SHA-256 sobre HTML normalizado. Persistencia atomica en state/<siteId>.fingerprint. Politica always-notify: 1 mensaje Markdown por poll con el estado de todas las webs.",
+      "description": "monitor.js monitoriza N webs declaradas en sites.json (raíz del repo). Deteccion hibrida: HEAD-first (Last-Modified/ETag) con fallback a SHA-256 sobre HTML normalizado. Persistencia atomica en state/<siteId>.fingerprint. Politica de notificacion: modo produccion (default) solo envia a Telegram cuando hay cambios; modo debug (SCRAPER_DEBUG=1) envia siempre.",
       "files": [
         "monitor.js",
         "sites.json",

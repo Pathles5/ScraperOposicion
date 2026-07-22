@@ -10,7 +10,7 @@
 2. Cada 5 minutos (systemd timer en la Raspberry Pi) itera sobre cada sitio.
 3. Detecta cambios con estrategia **híbrida**: HEAD-first (`Last-Modified`/`ETag`) con fallback a SHA-256 sobre HTML normalizado.
 4. Persiste el fingerprint por sitio en `state/<siteId>.fingerprint` (escritura atómica).
-5. Envía **siempre** un mensaje Markdown a Telegram con el estado de las N webs (`sendTelegramSummary`).
+5. Envía un mensaje Markdown a Telegram con el estado de las N webs (`sendTelegramSummary`) — solo si hay cambios (modo producción) o en cada poll si `SCRAPER_DEBUG=1` (modo debug).
 
 ## Getting Started
 
@@ -100,7 +100,7 @@ El script está organizado en secciones claramente diferenciadas. La fuente de v
 | **3. Detección de fingerprint** | `normalizeAndHash(html)`, `detectFingerprint(site)` | Híbrido HEAD-first → hash-fallback. |
 | **4. Persistencia** | `loadStoredFingerprint()`, `saveStoredFingerprint()` | Atomic write en `state/<siteId>.fingerprint`. |
 | **5. Primera ejecución** | `isFirstRun()`, `markInitialized()` | Flag en `state/.initialized`. |
-| **6. Notificación** | `sendTelegramSummary(summary, { firstRun })` | 1 mensaje Markdown por poll (always-notify). |
+| **6. Notificación** | `sendTelegramSummary(summary, { firstRun })` | Telegram: solo cuando hay cambios (default) o siempre si `SCRAPER_DEBUG=1`. |
 | **7. Logging** | `logToFile()`, `logInfo()`, `logError()` | Dual: stdout (journalctl) + `logs/scraper.log` rotado. |
 
 ## Documentation

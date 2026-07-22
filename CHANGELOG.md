@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `.github/workflows/monitor.yml` eliminado del repo (ya no hay GitHub Actions en esta rama; el bot corre exclusivamente en Raspberry Pi con systemd timer).
 - `.env` (raíz, ignorado por `.gitignore`) documentado con cabecera de comentarios para auto-explicarse (mismo estilo que `scripts/raspberry/telegram.env.example`).
 - `monitor.js`: timestamp del mensaje Telegram pasa de UTC a hora local de Madrid (Europe/Madrid) usando `Intl.DateTimeFormat` nativo. DST gestionado automáticamente. Los logs (`logs/scraper.log`) se mantienen en UTC ISO por convención estándar de logging.
+- **Política de notificación revertida**: el bot vuelve a `solo notificar cuando hay cambios` por defecto (revirtiendo la decisión "always-notify" del cierre de Fase 3). Se añade un **switch de debug** `SCRAPER_DEBUG=1` para volver al comportamiento anterior (notificar en cada poll). El switch se controla por variable de entorno, configurable vía `telegram.env` en la Pi. Logs siguen mostrando siempre la acción tomada.
 
 ## [Fase 3] — 2026-07-22 — Scraper local en Raspberry Pi (multi-site)
 

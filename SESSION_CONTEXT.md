@@ -92,6 +92,7 @@ ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs
 - **D15**: primera ejecución → mensaje "🟢 Monitor arrancado" sin marcar como cambio.
 - **D16**: escritura atómica del fingerprint (`writeFile.tmp` + `rename`).
 - **D17** (post-Fase 3, sesión actual): timestamp del mensaje Telegram en hora local Madrid (Europe/Madrid), DST-aware, vía `Intl.DateTimeFormat` nativo.
+- **D18** (post-Fase 3, sesión actual): **reversión de D3/D7/D8**. Política de notificación vuelve a `solo cuando hay cambios` por defecto. Se añade switch de debug `SCRAPER_DEBUG=1` (env var) para forzar always-notify. Razón: el usuario reconsideró tras probar — el always-notify producía demasiado ruido en Telegram. El switch queda documentado en `scripts/raspberry/telegram.env.example` (línea comentada) y `scripts/raspberry/scraper.service` (línea comentada).
 
 ### Decisiones revertidas durante la sesión
 

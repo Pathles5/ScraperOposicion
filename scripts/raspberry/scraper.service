@@ -13,6 +13,12 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=scraper-oposicion
 
+# Para activar el modo debug (notifica a Telegram en cada poll, no solo cuando
+# hay cambios), descomenta la siguiente línea y ejecuta:
+#   sudo systemctl restart scraper.timer
+# Para volver a modo producción (default), comenta la línea y reinicia el timer.
+#Environment=SCRAPER_DEBUG=1
+
 # Resiliencia
 Restart=on-failure
 RestartSec=30s

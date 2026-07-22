@@ -90,7 +90,7 @@ Entregables:
 - `monitor.js` → refactor a multi-site con detección híbrida HEAD-first / SHA-256 (fallback).
 - `sites.json` (raíz) → 2 webs declaradas (CM Educacion + CM Sede).
 - `state/<siteId>.fingerprint` → persistencia por sitio (atomic write).
-- `sendTelegramSummary` → 1 mensaje Markdown con N sitios, política always-notify (288/día).
+- `sendTelegramSummary` → 1 mensaje Markdown con N sitios. Política producción: solo notifica cuando hay cambios. Política debug (`SCRAPER_DEBUG=1`): notifica siempre.
 - `scripts/raspberry/{scraper.service, scraper.timer, install.sh, uninstall.sh, README.md, telegram.env.example}` → setup systemd.
 - `logs/scraper.log` → fichero rotado (1 MB → 500 KB).
 - `.github/workflows/monitor.yml` → cron desactivado, queda como legacy.
