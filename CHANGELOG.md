@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `sites.json` movido de `.opencode/config/sites.json` a la raíz del repo. Razón: el directorio `.opencode/` es harness de agentes, no producto. Actualizado `monitor.js`, `README.md`, `docs/architecture.md`, `docs/roadmap.md` y `feature_list.json`.
 - `.github/workflows/monitor.yml` eliminado del repo (ya no hay GitHub Actions en esta rama; el bot corre exclusivamente en Raspberry Pi con systemd timer).
 - `.env` (raíz, ignorado por `.gitignore`) documentado con cabecera de comentarios para auto-explicarse (mismo estilo que `scripts/raspberry/telegram.env.example`).
+- `monitor.js`: timestamp del mensaje Telegram pasa de UTC a hora local de Madrid (Europe/Madrid) usando `Intl.DateTimeFormat` nativo. DST gestionado automáticamente. Los logs (`logs/scraper.log`) se mantienen en UTC ISO por convención estándar de logging.
 
 ## [Fase 3] — 2026-07-22 — Scraper local en Raspberry Pi (multi-site)
 

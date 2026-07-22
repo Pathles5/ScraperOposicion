@@ -229,7 +229,18 @@ async function sendTelegramSummary(summary, { firstRun }) {
     );
   }
 
-  const now = new Date().toISOString().replace("T", " ").slice(0, 16) + " UTC";
+  // Timestamp en hora local de Madrid (Europe/Madrid). DST gestionado por Intl.
+  // sv-SE produce formato ISO-like "YYYY-MM-DD HH:MM" en la zona indicada.
+  const now =
+    new Intl.DateTimeFormat("sv-SE", {
+      timeZone: "Europe/Madrid",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(new Date()) + " Madrid";
 
   const lines = [];
   lines.push(firstRun ? "🟢 *Monitor arrancado*" : "🛰 *Monitor oposiciones CM*");
