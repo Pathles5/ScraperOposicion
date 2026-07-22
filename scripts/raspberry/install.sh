@@ -16,34 +16,53 @@ echo "[install] Proyecto: ${PROJECT_DIR}"
 echo "[install] Destino:  ${INSTALL_DIR}"
 echo "[install] Usuario:  ${ACTUAL_USER}"
 
-# Detecta el binario de una herramienta (node, pnpm, npm, ...) con la misma
-# estrategia robusta que antes: PATH actual → login shell del usuario original
-# (cubre nvm/fnm/custom) → null.
-#   $1 = nombre del ejecutable a buscar.
-detect_tool() {
-  local tool_name="$1"
-  local tool_bin=""
+# Detectar binario de node de forma robusta.
+# El problema típico: el usuario tiene node en ~/.../node/vXX/bin (nvm/fnm/custom)
+# y funciona como usuario normal, pero sudo resetea PATH al secure_path de
+# /etc/sudoers y no lo encuentra. Tres estrategias en orden:
+#   1) command -v node en el PATH actual (funciona si no se usa sudo, o si
+#      sudo preserva PATH, o si node está en /usr/bin).
+#   2) sudo -u SUDO_USER → command -v node en el login shell del usuario
+#      original. Activa nvm/fnm desde su .bashrc y resuelve la ruta real.
+#   3) Rutas absolutas comunes (apt/NodeSource/brew/snap).
+detect_node_bin() {
+  local node_bin=""
 
-  # 1) PATH actual (funciona sin sudo o si el binario está en /usr/bin)
-  tool_bin="$(command -v "${tool_name}" 2>/dev/null || true)"
-  if [[ -n "${tool_bin}" && -x "${tool_bin}" ]]; then
-    echo "${tool_bin}"
+  # 1) PATH actual
+  node_bin="$(command -v node 2>/dev/null || true)"
+  if [[ -n "${node_bin}" && -x "${node_bin}" ]]; then
+    echo "${node_bin}"
     return 0
   fi
 
-  # 2) Login shell del usuario original (cubre nvm/fnm/custom)
+  # 2) Bajo el usuario original (cubre nvm/fnm/custom)
   if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
-    tool_bin="$(sudo -u "${SUDO_USER}" -H bash -lc "command -v ${tool_name}" 2>/dev/null || true)"
-    if [[ -n "${tool_bin}" && -x "${tool_bin}" ]]; then
-      echo "${tool_bin}"
+    # -H = login shell (carga /etc/profile, ~/.bash_profile, ~/.bashrc, nvm, fnm…)
+    # -l  = explícitamente login shell (necesario con -c en bash moderno)
+    node_bin="$(sudo -u "${SUDO_USER}" -H bash -lc 'command -v node' 2>/dev/null || true)"
+    if [[ -n "${node_bin}" && -x "${node_bin}" ]]; then
+      echo "${node_bin}"
       return 0
     fi
   fi
 
+  # 3) Rutas absolutas comunes (último recurso)
+  local path
+  for path in \
+    /usr/bin/node \
+    /usr/local/bin/node \
+    /opt/homebrew/bin/node \
+    /snap/bin/node; do
+    if [[ -x "${path}" ]]; then
+      echo "${path}"
+      return 0
+    fi
+  done
+
   return 1
 }
 
-NODE_BIN="$(detect_tool node || true)"
+NODE_BIN="$(detect_node_bin || true)"
 if [[ -z "${NODE_BIN}" ]]; then
   echo "[install] ERROR: 'node' no se encuentra en PATH." >&2
   echo "  Como usuario normal funciona: ${SUDO_USER:-user} tiene node en su PATH" >&2
@@ -82,38 +101,6 @@ sudo rsync -a --delete \
   --exclude='state' \
   --exclude='logs' \
   "${PROJECT_DIR}/" "${INSTALL_DIR}/"
-
-# 2.5) Instalar dependencias (pnpm preferido, npm fallback).
-#      Solo si node_modules/ no existe (idempotencia: re-ejecuciones no reinstalan).
-if [[ ! -d "${INSTALL_DIR}/node_modules" ]]; then
-  PKG_MANAGER=""
-  PKG_MANAGER_BIN=""
-  for candidate in pnpm npm; do
-    PKG_MANAGER_BIN="$(detect_tool "${candidate}" || true)"
-    if [[ -n "${PKG_MANAGER_BIN}" ]]; then
-      PKG_MANAGER="${candidate}"
-      break
-    fi
-  done
-
-  if [[ -z "${PKG_MANAGER}" ]]; then
-    echo "[install] ERROR: ni 'pnpm' ni 'npm' están disponibles para instalar dependencias." >&2
-    echo "  Instala uno (recomendado pnpm):" >&2
-    echo "    sudo npm install -g pnpm" >&2
-    echo "    sudo apt install -y npm    # fallback" >&2
-    exit 1
-  fi
-
-  echo "[install] Instalando dependencias con ${PKG_MANAGER} (${PKG_MANAGER_BIN})…"
-  # Ejecutar como ACTUAL_USER (no root) para evitar warnings de pnpm sobre HOME.
-  if [[ "${PKG_MANAGER}" == "pnpm" ]]; then
-    sudo -u "${ACTUAL_USER}" bash -lc "cd '${INSTALL_DIR}' && '${PKG_MANAGER_BIN}' install --production"
-  else
-    sudo -u "${ACTUAL_USER}" bash -lc "cd '${INSTALL_DIR}' && '${PKG_MANAGER_BIN}' install --omit=dev"
-  fi
-else
-  echo "[install] node_modules/ ya existe en ${INSTALL_DIR} (skip install)."
-fi
 
 # 3) Asegurar logs/ con permisos correctos
 sudo mkdir -p "${INSTALL_DIR}/logs"

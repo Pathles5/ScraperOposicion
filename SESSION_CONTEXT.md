@@ -128,8 +128,6 @@ ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs             
 - **BOM en HANDOFF-FASE-3.md**: presente al cierre (cosmético, no rompe nada).
 - **Primer deploy en Pi falló (2026-07-22)**: systemd no encontró `node` en `/usr/bin/node`. Solucionado por `a57d1c8` (auto-detect en `install.sh`). El usuario debe re-ejecutar `install.sh` con el path correcto (`sudo ./scripts/raspberry/install.sh "$HOME/bots/.../ScraperOposicion"`).
 - **Segundo intento de install falló (2026-07-22, post-commit `a57d1c8`)**: el usuario tiene node v24.18.0 vía nvm (ruta en su home, no en sudo PATH). `command -v node` bajo sudo falla porque el `secure_path` de `/etc/sudoers` no incluye `/home/user/.nvm/versions/node/v24.18.0/bin`. Solucionado por la nueva `detect_node_bin()` que prueba como `SUDO_USER` con login shell (`sudo -u $SUDO_USER -H bash -lc 'command -v node'`). El usuario debe re-ejecutar `install.sh` (mismo path que antes).
-- **Tercer intento falló con `ERR_MODULE_NOT_FOUND: Cannot find package 'axios'`** (2026-07-22): `install.sh` excluía `node_modules/` del rsync pero nunca lo regeneraba, dejando `monitor.js` huérfano de dependencias. Solucionado por el commit que añade auto-install (`pnpm install --production` o fallback `npm install --omit=dev`) tras el rsync. Idempotente.
-- **Discrepancia de versiones node observada**: el usuario reporta `node -v` = v24.18.0 (nvm) pero el error de systemd muestra `Node.js v20.19.2`. `install.sh` puede haber detectado otra versión (apt `/usr/bin/node`). El validador ≥ 20 acepta ambas.
 
 ---
 

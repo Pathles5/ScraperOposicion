@@ -48,7 +48,7 @@ sudo nano /etc/scraper-oposicion/telegram.env
 
 ### 4. Instalar y arrancar
 
-`install.sh` automatiza todo: detecta `node`, valida versión, copia el proyecto, **instala las dependencias** (`pnpm install --production` o fallback a `npm install --omit=dev`), genera `scraper.service` con los paths correctos, e instala los units systemd. Si quieres instalar en un directorio distinto al del clone, pásalo como argumento.
+`install.sh` detecta automáticamente dónde está `node` (vía `command -v node`) y genera `scraper.service` con los paths correctos. Si quieres instalar en un directorio distinto al del clone, pásalo como argumento.
 
 **Instalación estándar** (a `/opt/scraper-oposicion`):
 
@@ -64,10 +64,9 @@ sudo ./scripts/raspberry/install.sh "$HOME/bots/ScraperOposicion"
 ```
 
 El script:
-- Detecta `node` (cascada: PATH actual → login shell del usuario original → rutas absolutas comunes). Cubre nvm/fnm bajo sudo.
+- Detecta `node` (vía `command -v node`).
 - Valida que sea ≥ 20.
 - Copia el proyecto al destino (excluyendo `.git/`, `node_modules/`, `state/`, `logs/`).
-- **Instala dependencias** (`pnpm install --production` preferido, `npm install --omit=dev` fallback) si `node_modules/` no existe. Idempotente: re-ejecuciones saltan este paso.
 - Crea `/etc/scraper-oposicion/telegram.env` desde el `.example` si no existe.
 - Genera `/etc/systemd/system/scraper.service` con `ExecStart=<node-path>`, `WorkingDirectory=<destino>`, `EnvironmentFile=/etc/scraper-oposicion/telegram.env`.
 - Copia `/etc/systemd/system/scraper.timer`.
@@ -85,14 +84,6 @@ Si systemd falla con `Unable to locate executable '/usr/bin/node'`, significa qu
 
 ```bash
 which node
-```
-
-Si systemd falla con `Cannot find package 'axios'` (o `cheerio`), `node_modules/` no existe en el destino. Re-ejecuta `install.sh` — instalará las dependencias automáticamente. O hazlo manual:
-
-```bash
-cd /opt/scraper-oposicion   # o tu INSTALL_DIR
-sudo -u $USER pnpm install --production
-# o: sudo -u $USER npm install --omit=dev
 ```
 
 ## Desinstalar
