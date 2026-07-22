@@ -10,8 +10,8 @@
 ### Ramas y commits
 
 - **Rama activa:** `local` (trackea `origin/local`)
-- **Último commit:** `770ac2b docs(deploy): warn when install.sh is run without INSTALL_DIR argument`
-- **Diferencia con origin:** 10 commits ahead (todos pushed)
+- **Último commit:** `b111682 fix(notify): drop HEAD-first detection, hash-only`
+- **Diferencia con origin:** 11 commits ahead (todos pushed)
 - **Working tree:** limpio
 - **Deploy en Pi:** ✅ funcionando correctamente (`~/bots/oposiciones/ScraperOposicion`, systemd timer activo, mensajes a Telegram cuando hay cambios).
 
@@ -22,7 +22,7 @@
 | 0 — Foundation | ✅ Completado | `ea890ba chore: bootstrap project documentation` |
 | 1 — Monitor CM Educacion | ✅ Completado | `5d57fce docs: register Fase 1 close` |
 | 2 — Notificación Telegram | ✅ Completado | `afc2e2b docs: register Fase 2 close` |
-| 3 — Scraper local Raspberry Pi | ✅ Completado | `ab56ed7 docs: register Fase 3 close` + 7 commits posteriores (`3040920`, `03bd2bb`, `b82435b`, `a58d012`, `a57d1c8`, `e154883`, `770ac2b`) |
+| 3 — Scraper local Raspberry Pi | ✅ Completado | `ab56ed7 docs: register Fase 3 close` + 8 commits posteriores (`3040920`, `03bd2bb`, `b82435b`, `a58d012`, `a57d1c8`, `e154883`, `770ac2b`, `b111682`) |
 
 > Commits `3b270b3` y `14d4f36` fueron hechos directamente por el usuario desde la Raspberry Pi (archivó task-304 + .gitignore tweak). Commit `11bee5b` (auto-install node deps) fue revertido en `d107513` por no ser necesario (el bug original era del usuario, no de `install.sh`).
 
@@ -67,9 +67,10 @@ Esta sesión retomó el HANDOFF-FASE-3.md que estaba en estado DRAFT desde 2026-
    - Refrescar `SESSION_CONTEXT.md` con el cierre completo de Fase 3 (`b82435b`).
    - **Revertir** la política always-notify tras reconsideración del usuario: ahora solo notifica en cambios por defecto, con switch `SCRAPER_DEBUG=1` para volver al always-notify (`a58d012`).
 
-### Commits realizados (13 — incluye los 2 commits del usuario desde la Pi y 1 revert)
+### Commits realizados (14 — incluye los 2 commits del usuario desde la Pi y 1 revert)
 
 ```
+b111682 fix(notify): drop HEAD-first detection, hash-only                              ← leader
 770ac2b docs(deploy): warn when install.sh is run without INSTALL_DIR argument         ← leader (mejora UX)
 d107513 Revert "fix(deploy): install.sh auto-installs node deps"                        ← leader (revert)
 11bee5b fix(deploy): install.sh auto-installs node deps (pnpm/npm) after rsync          ← leader (REVERTIDO)
@@ -127,6 +128,7 @@ ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs             
 8. **deploy fix (post-Fase 3) — `detect_tool` cubre sudo+nvm**: tras el fix inicial, el usuario seguía sin poder ejecutar porque su `node` está vía nvm (ruta no incluida en sudo `secure_path`). Refactor a `detect_tool` genérico que prueba como `SUDO_USER` con login shell (`sudo -u $SUDO_USER -H bash -lc 'command -v node'`), resolviendo el nvm.
 9. **deploy fix (post-Fase 3) — `install.sh` UX warning**: cuando se ejecuta sin argumento, ahora avisa que está usando el default `/opt/scraper-oposicion`. Evita el caso "cloné en `~/bots/...` pero install.sh instaló por defecto en `/opt/`" que el usuario sufrió.
 10. **commit `11bee5b` revertido en `d107513`**: la auto-instalación de dependencias que se añadió al `install.sh` no era estrictamente necesaria. El `ERR_MODULE_NOT_FOUND: Cannot find package 'axios'` que la motivaba vino de un error del usuario (ejecutó install.sh sin pasar la ruta destino). El deploy correcto en Pi funciona sin esa feature.
+11. **cambio de estrategia: hash-only (commit `b111682`)**: el usuario verificó en Chrome DevTools que `Last-Modified` cambia en cada respuesta de las webs CM sin cambio de contenido real (probablemente CDN/balanceador/A-B testing). Esto generaba falsos positivos constantes con la estrategia híbrida HEAD-first → hash-fallback. Solución: siempre GET + SHA-256 del HTML normalizado. Funciones `fetchHead()` y constante `HEAD_TIMEOUT_MS` eliminadas. ADR-004 reescrito para documentar el problema y las alternativas consideradas (incluida per-site config que se descartó por overengineering).
 
 ### Limitaciones conocidas del código actual
 
@@ -137,6 +139,9 @@ ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs             
 - **BOM en HANDOFF-FASE-3.md**: presente al cierre (cosmético, no rompe nada).
 - **Primer deploy en Pi falló (2026-07-22)**: systemd no encontró `node` en `/usr/bin/node`. Solucionado por `a57d1c8` (auto-detect en `install.sh`). El usuario debe re-ejecutar `install.sh` con el path correcto (`sudo ./scripts/raspberry/install.sh "$HOME/bots/.../ScraperOposicion"`).
 - **Segundo intento de install falló (2026-07-22, post-commit `a57d1c8`)**: el usuario tiene node v24.18.0 vía nvm (ruta en su home, no en sudo PATH). `command -v node` bajo sudo falla porque el `secure_path` de `/etc/sudoers` no incluye `/home/user/.nvm/versions/node/v24.18.0/bin`. Solucionado por la nueva `detect_node_bin()` que prueba como `SUDO_USER` con login shell (`sudo -u $SUDO_USER -H bash -lc 'command -v node'`). El usuario debe re-ejecutar `install.sh` (mismo path que antes).
+- **Discrepancia de versiones node observada**: el usuario reporta `node -v` = v24.18.0 (nvm) pero el error de systemd muestra `Node.js v20.19.2`. `install.sh` puede haber detectado otra versión (apt `/usr/bin/node`). El validador ≥ 20 acepta ambas.
+- **Deploy tras cambio a hash-only**: en la Pi, los `state/*.fingerprint` existentes tienen `tipo=last-modified`. El primer poll tras `git pull` de `b111682` generará un único falso positivo (tipo mismatch: old=last-modified vs new=sha256). Workaround: `rm state/*.fingerprint` antes de hacer `git pull`, o ignorar el primer mensaje. Solución ya documentada en el cuerpo del commit `b111682`.
+- **Actualizar lógica del bot en Pi**: con `git pull` es suficiente. NO requiere re-ejecutar `install.sh` ni reiniciar el timer systemd. El `Type=oneshot` lee `monitor.js` desde disco en cada poll, así que el siguiente poll (cada 5 min) usará la nueva lógica automáticamente. Confirmado por el usuario en esta sesión.
 
 ---
 
@@ -144,15 +149,25 @@ ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs             
 
 ### Inmediatos (orden recomendado)
 
-1. **Validación 24h del deploy** (primer `next_actions` en `feature_list.json`): comprobar que no hay falsos positivos y que `Restart=on-failure` funciona ante errores transitorios. Comando: `journalctl -u scraper.service -n 50` o `tail -f /home/user/bots/.../logs/scraper.log`.
-2. **Merge `local` → `main`** (opcional, decisión del usuario): el spec del HANDOFF §9.8 lo deja al usuario tras validación en Pi. Cuando lo decidas: `git checkout main && git pull && git merge local && git push`.
+1. **Pull del cambio hash-only en la Pi** (commit `b111682`):
+   ```bash
+   cd ~/bots/oposiciones/ScraperOposicion
+   git pull
+   # Opcional: limpiar state para evitar UN falso positivo por tipo mismatch
+   rm state/*.fingerprint
+   sudo systemctl start scraper.service   # fuerza un poll inmediato para testear
+   journalctl -u scraper.service -n 20
+   ```
+   Si NO haces `rm state/*.fingerprint`, recibirás UN mensaje espurio en el primer poll (tipo: last-modified → sha256). Después, silencio.
+2. **Validación 24h del deploy** (primer `next_actions` en `feature_list.json`): comprobar que no hay falsos positivos y que `Restart=on-failure` funciona ante errores transitorios. Comando: `journalctl -u scraper.service -n 50` o `tail -f /home/user/bots/.../logs/scraper.log`.
+3. **Merge `local` → `main`** (opcional, decisión del usuario): el spec del HANDOFF §9.8 lo deja al usuario tras validación en Pi. Cuando lo decidas: `git checkout main && git pull && git merge local && git push`.
 
 ### Opcionales (limpieza)
 
-3. **Limpiar BOM de HANDOFF-FASE-3.md**: cosmético.
-4. **Forzar `systemd-analyze verify`** en Pi para validar syntax INI de los units.
-5. **Borrar la copia rota de `/opt/scraper-oposicion`** (si quedó de cuando ejecutaste `install.sh` sin args): `sudo rm -rf /opt/scraper-oposicion`. NO toques `/etc/scraper-oposicion/` (tiene credenciales).
-6. **Decidir sobre la versión de node en la Pi**: tienes nvm v24.18.0 (default) y v20.19.2 (probablemente apt). El bot funciona con ambas. Para consistencia, fija una con `nvm alias default <versión>` antes de re-ejecutar install.sh.
+4. **Limpiar BOM de HANDOFF-FASE-3.md**: cosmético.
+5. **Forzar `systemd-analyze verify`** en Pi para validar syntax INI de los units.
+6. **Borrar la copia rota de `/opt/scraper-oposicion`** (si quedó de cuando ejecutaste `install.sh` sin args): `sudo rm -rf /opt/scraper-oposicion`. NO toques `/etc/scraper-oposicion/` (tiene credenciales).
+7. **Decidir sobre la versión de node en la Pi**: tienes nvm v24.18.0 (default) y v20.19.2 (probablemente apt). El bot funciona con ambas. Para consistencia, fija una con `nvm alias default <versión>` antes de re-ejecutar install.sh.
 
 ### Ideas para Fase 4 (NO iniciadas, solo documentadas como referencia)
 
@@ -169,7 +184,7 @@ ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs             
 1. **Salir de esta sesión y volver más tarde.** El contexto completo está aquí.
 2. **Al volver**, el leader debe:
    - Leer este fichero (especialmente "Cambios de esta sesión" y "Próximos pasos").
-   - Verificar `git log --oneline -10` para confirmar el último commit (`770ac2b`).
+   - Verificar `git log --oneline -10` para confirmar el último commit (`b111682`).
    - Verificar `git status` para confirmar working tree limpio.
    - Preguntar al usuario: "¿Algún issue nuevo desde la última sesión? ¿Listo para merge a main o para empezar Fase 4?"
 3. **No re-preguntar decisiones D1–D18** ya validadas — están documentadas arriba.
@@ -204,8 +219,9 @@ ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs             
 - **Working directory del agent:** `C:\Users\pathl\Workspace\ScraperOposicion`.
 - **Shell:** PowerShell 5.1 en Windows. El developer tuvo que usar Git Bash (`C:\Program Files\Git\bin\bash.exe`) para `bash -n` de los scripts.
 - **Permisos:** `permission: allow` global en `~/.config/opencode/opencode.json`. Los agentes tienen permisos ampliados commiteados en `.opencode/agents/*.md`.
-- **Push al cerrar:** hecho. `origin/local` está 10 commits ahead del HEAD inicial de la sesión.
+- **Push al cerrar:** hecho. `origin/local` está 11 commits ahead del HEAD inicial de la sesión.
 - **Convención archivado tasks**: tras cierre de fase, los specs se renombran a `.archived.md` para preservar histórico sin contaminar el directorio activo. El usuario archivó `task-304` él mismo desde la Pi (`3b270b3`).
 - **Política actual de notificación**: producción silenciosa (solo en cambios). Para activar always-notify (heartbeat cada 5 min): `SCRAPER_DEBUG=1` en `telegram.env` o `Environment=SCRAPER_DEBUG=1` en `scraper.service`. La Pi arranca en modo producción por defecto. **Cambiar el env NO requiere desinstalar**: editar `/etc/scraper-oposicion/telegram.env`, comentar/borrar `SCRAPER_DEBUG=1`, y listo. El `Type=oneshot` lee el env en cada ejecución.
-- **Deploy en Pi funcionando**: copia correcta en `~/bots/oposiciones/ScraperOposicion` (no `/opt/`), systemd timer activo, mensajes a Telegram cuando hay cambios.
+- **Deploy en Pi funcionando**: copia correcta en `~/bots/oposiciones/ScraperOposicion` (no `/opt/`), systemd timer activo, mensajes a Telegram cuando hay cambios. Estrategia de detección: **hash-only** (commit `b111682`).
 - **`.gitignore` cubre** `scripts/raspberry/telegram.env` por seguridad (decidido por el usuario en `14d4f36`), aunque el env real vive en `/etc/scraper-oposicion/`.
+- **Actualizar código en Pi**: `git pull` es suficiente. NO requiere re-ejecutar `install.sh` ni reiniciar el timer systemd. El `Type=oneshot` lee `monitor.js` desde disco en cada poll. Confirmado por el usuario en esta sesión.
