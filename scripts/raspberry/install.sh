@@ -5,7 +5,16 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 # Destino del proyecto: arg1 si se pasa, si no /opt/scraper-oposicion.
+# Si el usuario no pasa ruta y el proyecto NO está en /opt/scraper-oposicion,
+# avisa para evitar el caso típico "cloné en ~/bots/... pero install.sh
+# instaló por defecto en /opt/...".
 INSTALL_DIR="${1:-/opt/scraper-oposicion}"
+if [[ -z "${1:-}" ]]; then
+  echo "[install] WARNING: no pasaste ruta destino. Usando default '${INSTALL_DIR}'."
+  echo "[install]   Si tu proyecto está en otro sitio (ej. ~/bots/...), pasa la ruta:"
+  echo "[install]     sudo \$0 \"\$HOME/bots/ScraperOposicion\""
+  echo ""
+fi
 ENV_DIR="/etc/scraper-oposicion"
 ENV_FILE="${ENV_DIR}/telegram.env"
 
