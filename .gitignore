@@ -24,3 +24,4 @@ state/*.fingerprint
 state/*.fingerprint.tmp
 state/.initialized
 logs/*.log
+scripts/raspberry/telegram.env
