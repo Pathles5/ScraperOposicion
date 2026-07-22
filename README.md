@@ -10,7 +10,7 @@
 2. Cada 5 minutos (systemd timer en la Raspberry Pi) itera sobre cada sitio.
 3. Detecta cambios calculando **SHA-256 del HTML normalizado** (cheerio quita scripts/styles/comentarios, whitespace colapsado). Anteriormente había una rama HEAD-first que se descartó: las webs de la CM regeneran `Last-Modified` en cada respuesta sin cambio real de contenido, generando falsos positivos.
 4. Persiste el fingerprint por sitio en `state/<siteId>.fingerprint` (escritura atómica).
-5. Envía un mensaje Markdown a Telegram con el estado de las N webs (`sendTelegramSummary`) — solo si hay cambios (modo producción) o en cada poll si `SCRAPER_DEBUG=1` (modo debug).
+5. Envía un mensaje Markdown a Telegram **solo con las webs que han cambiado** (`sendTelegramSummary`) — solo si hay al menos un cambio (modo producción) o en cada poll si `SCRAPER_DEBUG=1` (modo debug, con nota explícita si no hay cambios).
 
 ## Getting Started
 

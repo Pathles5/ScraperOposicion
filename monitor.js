@@ -242,16 +242,26 @@ async function sendTelegramSummary(summary, { firstRun }) {
   lines.push(`_${now}_`);
   lines.push("");
 
-  for (const item of summary) {
-    const status = item.changed ? "🔔 *CAMBIO DETECTADO*" : "✓ sin cambios";
+  // Filtrar solo los sitios con cambios. En modo debug + sin cambios,
+  // la lista queda vacía y se añade una nota explícita abajo.
+  const changedItems = summary.filter((item) => item.changed);
+
+  for (const item of changedItems) {
     lines.push(`• *${item.name}*`);
-    lines.push(`  ${status}`);
+    lines.push(`  🔔 *CAMBIO DETECTADO*`);
     lines.push(`  método: \`${item.detectionMethod}\``);
     lines.push(`  fingerprint: \`${item.fingerprintPreview}\``);
-    if (item.changed && item.previousPreview) {
+    if (item.previousPreview) {
       lines.push(`  anterior:    \`${item.previousPreview}\``);
     }
     lines.push(`  url: ${item.url}`);
+    lines.push("");
+  }
+
+  if (changedItems.length === 0) {
+    // Solo ocurre en modo debug: en producción este código no se llama
+    // porque main() ya filtró antes con la condición `else if`.
+    lines.push("_(sin cambios en ningún sitio — modo debug)_");
     lines.push("");
   }
 
@@ -263,14 +273,11 @@ async function sendTelegramSummary(summary, { firstRun }) {
         "Quita `SCRAPER_DEBUG=1` del entorno para volver a modo producción (solo notifica si hay cambios)."
     );
   } else {
-    const cambios = summary.filter((s) => s.changed).length;
-    if (cambios > 0) {
-      lines.push(`⚠️ ${cambios} de ${summary.length} sitios cambiaron.`);
+    if (changedItems.length > 0) {
+      const n = changedItems.length;
+      lines.push(`⚠️ ${n} sitio${n === 1 ? '' : 's'} cambiaron.`);
     }
     lines.push("Próximo check en 5 min.");
-    if (DEBUG && cambios === 0) {
-      lines.push("_(modo debug: notificando aunque no haya cambios)_");
-    }
   }
 
   const message = lines.join("\n");
