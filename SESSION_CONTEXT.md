@@ -10,8 +10,8 @@
 ### Ramas y commits
 
 - **Rama activa:** `local` (trackea `origin/local`)
-- **Último commit:** `03bd2bb fix(notify): use Madrid local time in Telegram message timestamp`
-- **Diferencia con origin:** 6 commits ahead (todos pushed)
+- **Último commit:** `a58d012 feat(notify): revert always-notify by default, add SCRAPER_DEBUG switch`
+- **Diferencia con origin:** 8 commits ahead (todos pushed)
 - **Working tree:** limpio salvo `.opencode/tasks/task-304-cleanup-docs-adrs.md` untracked
 
 ### Fases
@@ -21,7 +21,7 @@
 | 0 — Foundation | ✅ Completado | `ea890ba chore: bootstrap project documentation` |
 | 1 — Monitor CM Educacion | ✅ Completado | `5d57fce docs: register Fase 1 close` |
 | 2 — Notificación Telegram | ✅ Completado | `afc2e2b docs: register Fase 2 close` |
-| 3 — Scraper local Raspberry Pi | ✅ Completado | `ab56ed7 docs: register Fase 3 close` + 2 commits de cleanup (`3040920`, `03bd2bb`) |
+| 3 — Scraper local Raspberry Pi | ✅ Completado | `ab56ed7 docs: register Fase 3 close` + 4 commits posteriores (`3040920`, `03bd2bb`, `b82435b`, `a58d012`) |
 
 ### ADRs registrados (6)
 
@@ -40,7 +40,7 @@
 |---|---|---|
 | `monitor-cm-edu` | 1 | Monitor CM Educacion original (regex + GH Actions). Sustituido por `multi-site-hash`. |
 | `telegram-notify` | 2 | Notificación Telegram via Bot API. Sustituido por `multi-site-hash`. |
-| `multi-site-hash` | 3 | Detección multi-site híbrida + always-notify + persistencia atómica. |
+| `multi-site-hash` | 3 | Detección multi-site híbrida + persistencia atómica. **Política notificación**: solo en cambios (default) o always-notify con `SCRAPER_DEBUG=1`. |
 | `raspberry-local-scraper` | 3 | systemd timer + service + install.sh + logging rotado. |
 
 ---
@@ -58,13 +58,17 @@ Esta sesión retomó el HANDOFF-FASE-3.md que estaba en estado DRAFT desde 2026-
 5. **Iteré las 4 tasks** con el flujo `developer → reviewer → commit`:
    - 3 veredictos APROBADO.
    - 1 veredicto APROBADO_CON_OBSERVACIONES (task-303: chmod workflow + limitaciones de logging inherentes al spec).
-6. **Apliqué 2 commits de cleanup** post-Fase 3 por feedback directo del usuario:
-   - Mover `sites.json` de `.opencode/config/` a raíz + eliminar `.github/workflows/monitor.yml`.
-   - Cambiar el timestamp del mensaje Telegram de UTC a hora local Madrid (Europe/Madrid, DST-aware).
+6. **Apliqué 4 commits de cleanup/ajuste** post-Fase 3 por feedback directo del usuario:
+   - Mover `sites.json` de `.opencode/config/` a raíz + eliminar `.github/workflows/monitor.yml` (`3040920`).
+   - Cambiar el timestamp del mensaje Telegram de UTC a hora local Madrid (Europe/Madrid, DST-aware) (`03bd2bb`).
+   - Refrescar `SESSION_CONTEXT.md` con el cierre completo de Fase 3 (`b82435b`).
+   - **Revertir** la política always-notify tras reconsideración del usuario: ahora solo notifica en cambios por defecto, con switch `SCRAPER_DEBUG=1` para volver al always-notify (`a58d012`).
 
-### Commits realizados (6)
+### Commits realizados (9)
 
 ```
+a58d012 feat(notify): revert always-notify by default, add SCRAPER_DEBUG switch
+b82435b docs(session): refresh SESSION_CONTEXT with full Fase 3 close + cleanup history
 03bd2bb fix(notify): use Madrid local time in Telegram message timestamp
 3040920 chore(repo): move sites.json to root + drop GitHub Actions workflow
 ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs
@@ -98,6 +102,7 @@ ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs
 
 - **`sites.json` location**: inicialmente planificado en `.opencode/config/sites.json` (D14). El usuario corrigió post-Fase 3 → movido a raíz. Razón: `.opencode/` es harness de agentes, no producto.
 - **GitHub Actions retention**: inicialmente "cron comentado, workflow queda como legacy". El usuario corrigió post-Fase 3 → workflow completo eliminado del repo. Razón: "en esta rama no vamos a tener workflows".
+- **Always-notify (D3/D7/D8)**: activado al cierre de Fase 3. El usuario reconsideró al usarlo mentalmente (288 msgs/día = demasiado ruido) → revertido en D18. La funcionalidad se conserva como opt-in vía `SCRAPER_DEBUG=1`.
 
 ### Desviaciones de los specs durante la sesión (todas justificadas)
 
@@ -160,10 +165,10 @@ ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs
 1. **Salir de esta sesión y volver más tarde.** El contexto completo está aquí.
 2. **Al volver**, el leader debe:
    - Leer este fichero (especialmente "Cambios de esta sesión" y "Próximos pasos").
-   - Verificar `git log --oneline -10` para confirmar el último commit (`03bd2bb`).
+   - Verificar `git log --oneline -10` para confirmar el último commit (`a58d012`).
    - Verificar `git status` para confirmar working tree limpio.
    - Preguntar al usuario: "¿Seguimos con el deploy en Pi o quieres empezar Fase 4?"
-3. **No re-preguntar decisiones D1–D17** ya validadas — están documentadas arriba.
+3. **No re-preguntar decisiones D1–D18** ya validadas — están documentadas arriba.
 
 ---
 
@@ -180,6 +185,7 @@ ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs
 | `scripts/raspberry/telegram.env.example` | Plantilla para `/etc/scraper-oposicion/telegram.env` en la Pi. |
 | `scripts/raspberry/scraper.service` + `scraper.timer` | systemd units. |
 | `scripts/raspberry/install.sh` | Idempotente: clona proyecto + crea `/etc/scraper-oposicion/telegram.env` desde .example + instala units + enable timer. |
+| `SCRAPER_DEBUG=1` (env var) | Switch opcional. Activado: notifica en cada poll (always-notify). Desactivado (default): solo notifica cuando hay cambios. Configurable en `/etc/scraper-oposicion/telegram.env` (línea comentada en `telegram.env.example`) o como `Environment=` en `scraper.service`. |
 | `docs/decisions.md` | 6 ADRs (001-006). |
 | `docs/architecture.md` | Diagrama de flujo + componentes Fase 3. |
 | `docs/roadmap.md` | Roadmap con las 4 fases marcadas como Completado. |
@@ -194,5 +200,6 @@ ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs
 - **Working directory del agent:** `C:\Users\pathl\Workspace\ScraperOposicion`.
 - **Shell:** PowerShell 5.1 en Windows. El developer tuvo que usar Git Bash (`C:\Program Files\Git\bin\bash.exe`) para `bash -n` de los scripts.
 - **Permisos:** `permission: allow` global en `~/.config/opencode/opencode.json`. Los agentes tienen permisos ampliados commiteados en `.opencode/agents/*.md`.
-- **Push al cerrar:** hecho. `origin/local` está 6 commits ahead de cuando empezó esta sesión.
+- **Push al cerrar:** hecho. `origin/local` está 8 commits ahead de cuando empezó esta sesión.
 - **Convención archivado tasks**: tras cierre de fase, los specs se renombran a `.archived.md` para preservar histórico sin contaminar el directorio activo. `task-304` quedó fuera de este ciclo (untracked) — archivado a criterio del usuario.
+- **Política actual de notificación**: producción silenciosa (solo en cambios). Para activar always-notify (heartbeat cada 5 min): `SCRAPER_DEBUG=1` en `telegram.env` o `Environment=SCRAPER_DEBUG=1` en `scraper.service`. La Pi arranca en modo producción por defecto.
