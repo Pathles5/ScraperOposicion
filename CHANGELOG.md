@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `monitor.js`: timestamp del mensaje Telegram pasa de UTC a hora local de Madrid (Europe/Madrid) usando `Intl.DateTimeFormat` nativo. DST gestionado automáticamente. Los logs (`logs/scraper.log`) se mantienen en UTC ISO por convención estándar de logging.
 - **Política de notificación revertida**: el bot vuelve a `solo notificar cuando hay cambios` por defecto (revirtiendo la decisión "always-notify" del cierre de Fase 3). Se añade un **switch de debug** `SCRAPER_DEBUG=1` para volver al comportamiento anterior (notificar en cada poll). El switch se controla por variable de entorno, configurable vía `telegram.env` en la Pi. Logs siguen mostrando siempre la acción tomada.
 
+### Fixed
+- `scripts/raspberry/install.sh` ahora detecta automáticamente el binario de `node` (vía `command -v node`), valida que sea ≥ 20, acepta el directorio destino como argumento (default `/opt/scraper-oposicion`), y genera `scraper.service` con los paths correctos al desplegar. Antes copiaba un `scraper.service` estático con `/usr/bin/node` hardcodeado, lo que fallaba si Node estaba en otra ruta (`/usr/local/bin/node`, `~/.nvm/.../bin/node`, etc.). También usa `SUDO_USER` para el `chown` (antes usaba `whoami` que devolvía `root` al ejecutar con sudo).
+
 ## [Fase 3] — 2026-07-22 — Scraper local en Raspberry Pi (multi-site)
 
 ### Added

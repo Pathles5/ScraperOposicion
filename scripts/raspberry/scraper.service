@@ -1,3 +1,9 @@
+# Plantilla de referencia. El fichero que se despliega realmente en
+# /etc/systemd/system/scraper.service lo genera install.sh con los paths
+# detectados (NODE_BIN vía `command -v node`, WorkingDirectory desde $1 o
+# /opt/scraper-oposicion por defecto). Si copias este fichero a mano, edita
+# ExecStart y WorkingDirectory con tus paths reales.
+
 [Unit]
 Description=Scraper Oposiciones CM — monitor multi-site
 Documentation=https://github.com/<owner>/scraper-oposicion

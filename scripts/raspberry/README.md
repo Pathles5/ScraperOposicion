@@ -18,11 +18,23 @@ sudo npm install -g pnpm
 
 ### 2. Clonar el repo y preparar
 
+**Opción A**: instalar en `/opt/scraper-oposicion` (default, recomendado):
+
 ```bash
 cd /opt
 sudo git clone https://github.com/<owner>/scraper-oposicion.git
 sudo chown -R $USER:$USER /opt/scraper-oposicion
 cd /opt/scraper-oposicion
+pnpm install --production
+```
+
+**Opción B**: instalar en tu home (p.ej. `~/bots/...`):
+
+```bash
+mkdir -p ~/bots
+cd ~/bots
+git clone https://github.com/<owner>/scraper-oposicion.git
+cd ScraperOposicion
 pnpm install --production
 ```
 
@@ -36,10 +48,29 @@ sudo nano /etc/scraper-oposicion/telegram.env
 
 ### 4. Instalar y arrancar
 
+`install.sh` detecta automáticamente dónde está `node` (vía `command -v node`) y genera `scraper.service` con los paths correctos. Si quieres instalar en un directorio distinto al del clone, pásalo como argumento.
+
+**Instalación estándar** (a `/opt/scraper-oposicion`):
+
 ```bash
 chmod +x scripts/raspberry/install.sh
-./scripts/raspberry/install.sh
+sudo ./scripts/raspberry/install.sh
 ```
+
+**Instalación en home** (p.ej. `~/bots/...`):
+
+```bash
+sudo ./scripts/raspberry/install.sh "$HOME/bots/ScraperOposicion"
+```
+
+El script:
+- Detecta `node` (vía `command -v node`).
+- Valida que sea ≥ 20.
+- Copia el proyecto al destino (excluyendo `.git/`, `node_modules/`, `state/`, `logs/`).
+- Crea `/etc/scraper-oposicion/telegram.env` desde el `.example` si no existe.
+- Genera `/etc/systemd/system/scraper.service` con `ExecStart=<node-path>`, `WorkingDirectory=<destino>`, `EnvironmentFile=/etc/scraper-oposicion/telegram.env`.
+- Copia `/etc/systemd/system/scraper.timer`.
+- Habilita y arranca el timer.
 
 ### 5. Verificar
 
@@ -47,6 +78,12 @@ chmod +x scripts/raspberry/install.sh
 systemctl status scraper.timer
 systemctl list-timers scraper.timer
 journalctl -u scraper.service -f
+```
+
+Si systemd falla con `Unable to locate executable '/usr/bin/node'`, significa que tu `node` no está en `/usr/bin/node`. Re-ejecuta `install.sh` — detectará el path correcto automáticamente. Si quieres ver dónde está:
+
+```bash
+which node
 ```
 
 ## Desinstalar
