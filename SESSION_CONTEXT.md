@@ -10,9 +10,10 @@
 ### Ramas y commits
 
 - **Rama activa:** `local` (trackea `origin/local`)
-- **Último commit:** `a57d1c8 fix(deploy): install.sh auto-detects node path and accepts custom install dir`
-- **Diferencia con origin:** 9 commits ahead (todos pushed)
+- **Último commit:** `770ac2b docs(deploy): warn when install.sh is run without INSTALL_DIR argument`
+- **Diferencia con origin:** 10 commits ahead (todos pushed)
 - **Working tree:** limpio
+- **Deploy en Pi:** ✅ funcionando correctamente (`~/bots/oposiciones/ScraperOposicion`, systemd timer activo, mensajes a Telegram cuando hay cambios).
 
 ### Fases
 
@@ -21,9 +22,9 @@
 | 0 — Foundation | ✅ Completado | `ea890ba chore: bootstrap project documentation` |
 | 1 — Monitor CM Educacion | ✅ Completado | `5d57fce docs: register Fase 1 close` |
 | 2 — Notificación Telegram | ✅ Completado | `afc2e2b docs: register Fase 2 close` |
-| 3 — Scraper local Raspberry Pi | ✅ Completado | `ab56ed7 docs: register Fase 3 close` + 5 commits posteriores (`3040920`, `03bd2bb`, `b82435b`, `a58d012`, `a57d1c8`) |
+| 3 — Scraper local Raspberry Pi | ✅ Completado | `ab56ed7 docs: register Fase 3 close` + 7 commits posteriores (`3040920`, `03bd2bb`, `b82435b`, `a58d012`, `a57d1c8`, `e154883`, `770ac2b`) |
 
-> Commits `3b270b3` y `14d4f36` fueron hechos directamente por el usuario desde la Raspberry Pi (archivó task-304 + .gitignore tweak).
+> Commits `3b270b3` y `14d4f36` fueron hechos directamente por el usuario desde la Raspberry Pi (archivó task-304 + .gitignore tweak). Commit `11bee5b` (auto-install node deps) fue revertido en `d107513` por no ser necesario (el bug original era del usuario, no de `install.sh`).
 
 ### ADRs registrados (6)
 
@@ -66,12 +67,17 @@ Esta sesión retomó el HANDOFF-FASE-3.md que estaba en estado DRAFT desde 2026-
    - Refrescar `SESSION_CONTEXT.md` con el cierre completo de Fase 3 (`b82435b`).
    - **Revertir** la política always-notify tras reconsideración del usuario: ahora solo notifica en cambios por defecto, con switch `SCRAPER_DEBUG=1` para volver al always-notify (`a58d012`).
 
-### Commits realizados (11 — incluye los 2 commits del usuario desde la Pi)
+### Commits realizados (13 — incluye los 2 commits del usuario desde la Pi y 1 revert)
 
 ```
-a57d1c8 fix(deploy): install.sh auto-detects node path and accepts custom install dir   ← leader
-14d4f36 gitignore                                                                       ← usuario desde Pi
-3b270b3 Save session                                                                    ← usuario desde Pi (archivó task-304)
+770ac2b docs(deploy): warn when install.sh is run without INSTALL_DIR argument         ← leader (mejora UX)
+d107513 Revert "fix(deploy): install.sh auto-installs node deps"                        ← leader (revert)
+11bee5b fix(deploy): install.sh auto-installs node deps (pnpm/npm) after rsync          ← leader (REVERTIDO)
+e154883 fix(deploy): detect_node_bin handles sudo+nvm by searching as SUDO_USER        ← leader
+177e947 docs: refresh after Pi deploy attempt + install.sh fix                          ← leader
+a57d1c8 fix(deploy): install.sh auto-detects node path and accepts custom install dir    ← leader
+14d4f36 gitignore                                                                          ← usuario desde Pi
+3b270b3 Save session                                                                       ← usuario desde Pi (archivó task-304)
 a58d012 feat(notify): revert always-notify by default, add SCRAPER_DEBUG switch          ← leader
 b82435b docs(session): refresh SESSION_CONTEXT with full Fase 3 close + cleanup history  ← leader
 03bd2bb fix(notify): use Madrid local time in Telegram message timestamp                ← leader
@@ -118,6 +124,9 @@ ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs             
 5. **task-304 — `SESSION_CONTEXT.md` staged con `git add -f`**: estaba en `.gitignore` por convención de Fase 0 ("no se commitea"). El spec de task-304 revirtió esa regla para commitear el contexto actualizado.
 6. **task-304 leader fix — 4 secciones de `README.md` actualizadas directamente por el leader**: el spec no las incluía pero quedaban en estado Fase 1/2 (intro, Project Structure, Architecture table, Tech Stack). El leader las arregló antes de commitear para evitar abrir una task-305.
 7. **deploy fix (post-Fase 3) — `install.sh` reescrito para auto-detectar `node`**: el usuario detectó `Unable to locate executable '/usr/bin/node'` en su primer arranque real. El `scraper.service` commiteado tenía `/usr/bin/node` hardcodeado y `install.sh` asumía `/opt/...`. Leader reescribió `install.sh` con `command -v node` + arg de ruta destino + generación dinámica del service.
+8. **deploy fix (post-Fase 3) — `detect_tool` cubre sudo+nvm**: tras el fix inicial, el usuario seguía sin poder ejecutar porque su `node` está vía nvm (ruta no incluida en sudo `secure_path`). Refactor a `detect_tool` genérico que prueba como `SUDO_USER` con login shell (`sudo -u $SUDO_USER -H bash -lc 'command -v node'`), resolviendo el nvm.
+9. **deploy fix (post-Fase 3) — `install.sh` UX warning**: cuando se ejecuta sin argumento, ahora avisa que está usando el default `/opt/scraper-oposicion`. Evita el caso "cloné en `~/bots/...` pero install.sh instaló por defecto en `/opt/`" que el usuario sufrió.
+10. **commit `11bee5b` revertido en `d107513`**: la auto-instalación de dependencias que se añadió al `install.sh` no era estrictamente necesaria. El `ERR_MODULE_NOT_FOUND: Cannot find package 'axios'` que la motivaba vino de un error del usuario (ejecutó install.sh sin pasar la ruta destino). El deploy correcto en Pi funciona sin esa feature.
 
 ### Limitaciones conocidas del código actual
 
@@ -135,24 +144,15 @@ ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs             
 
 ### Inmediatos (orden recomendado)
 
-1. **Recuperar el deploy en Pi** (el fix `a57d1c8` ya está pushed):
-   ```bash
-   cd ~/bots/oposiciones/ScraperOposicion   # o donde lo clonaras
-   git pull
-   sudo ./scripts/raspberry/install.sh "$HOME/bots/oposiciones/ScraperOposicion"
-   systemctl cat scraper.service | grep -E "ExecStart|WorkingDirectory"
-   journalctl -u scraper.service -f
-   ```
-   Si `systemctl cat` muestra paths incorrectos, el `install.sh` no detectó bien; ejecuta `which node` y reporta.
-2. **Validación 24h** (primer `next_actions` en `feature_list.json`): comprobar que no hay falsos positivos y que `Restart=on-failure` funciona ante errores transitorios.
-3. **Validación con credenciales reales**: el developer no tenía `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` en su entorno dev, así que el envío real solo se probará cuando el bot corra en la Pi con `/etc/scraper-oposicion/telegram.env` configurado.
-4. **Merge `local` → `main`** (opcional, decisión del usuario): el spec del HANDOFF §9.8 lo deja al usuario tras validación en Pi.
+1. **Validación 24h del deploy** (primer `next_actions` en `feature_list.json`): comprobar que no hay falsos positivos y que `Restart=on-failure` funciona ante errores transitorios. Comando: `journalctl -u scraper.service -n 50` o `tail -f /home/user/bots/.../logs/scraper.log`.
+2. **Merge `local` → `main`** (opcional, decisión del usuario): el spec del HANDOFF §9.8 lo deja al usuario tras validación en Pi. Cuando lo decidas: `git checkout main && git pull && git merge local && git push`.
 
 ### Opcionales (limpieza)
 
-5. **Limpiar BOM de HANDOFF-FASE-3.md**: cosmético.
-6. **Forzar `systemd-analyze verify`** en Pi para validar syntax INI de los units.
-7. **Revisar si `git mv` el archivo `task-304` archivado es visible en el repo**: el usuario lo hizo con `3b270b3 Save session`. Confirmar que el archivo está bien.
+3. **Limpiar BOM de HANDOFF-FASE-3.md**: cosmético.
+4. **Forzar `systemd-analyze verify`** en Pi para validar syntax INI de los units.
+5. **Borrar la copia rota de `/opt/scraper-oposicion`** (si quedó de cuando ejecutaste `install.sh` sin args): `sudo rm -rf /opt/scraper-oposicion`. NO toques `/etc/scraper-oposicion/` (tiene credenciales).
+6. **Decidir sobre la versión de node en la Pi**: tienes nvm v24.18.0 (default) y v20.19.2 (probablemente apt). El bot funciona con ambas. Para consistencia, fija una con `nvm alias default <versión>` antes de re-ejecutar install.sh.
 
 ### Ideas para Fase 4 (NO iniciadas, solo documentadas como referencia)
 
@@ -169,9 +169,9 @@ ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs             
 1. **Salir de esta sesión y volver más tarde.** El contexto completo está aquí.
 2. **Al volver**, el leader debe:
    - Leer este fichero (especialmente "Cambios de esta sesión" y "Próximos pasos").
-   - Verificar `git log --oneline -10` para confirmar el último commit (`a57d1c8`).
+   - Verificar `git log --oneline -10` para confirmar el último commit (`770ac2b`).
    - Verificar `git status` para confirmar working tree limpio.
-   - Preguntar al usuario: "¿Funcionó el deploy en Pi tras el re-run de install.sh? ¿Algún issue nuevo?"
+   - Preguntar al usuario: "¿Algún issue nuevo desde la última sesión? ¿Listo para merge a main o para empezar Fase 4?"
 3. **No re-preguntar decisiones D1–D18** ya validadas — están documentadas arriba.
 
 ---
@@ -204,8 +204,8 @@ ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs             
 - **Working directory del agent:** `C:\Users\pathl\Workspace\ScraperOposicion`.
 - **Shell:** PowerShell 5.1 en Windows. El developer tuvo que usar Git Bash (`C:\Program Files\Git\bin\bash.exe`) para `bash -n` de los scripts.
 - **Permisos:** `permission: allow` global en `~/.config/opencode/opencode.json`. Los agentes tienen permisos ampliados commiteados en `.opencode/agents/*.md`.
-- **Push al cerrar:** hecho. `origin/local` está 9 commits ahead del HEAD inicial de la sesión.
+- **Push al cerrar:** hecho. `origin/local` está 10 commits ahead del HEAD inicial de la sesión.
 - **Convención archivado tasks**: tras cierre de fase, los specs se renombran a `.archived.md` para preservar histórico sin contaminar el directorio activo. El usuario archivó `task-304` él mismo desde la Pi (`3b270b3`).
-- **Política actual de notificación**: producción silenciosa (solo en cambios). Para activar always-notify (heartbeat cada 5 min): `SCRAPER_DEBUG=1` en `telegram.env` o `Environment=SCRAPER_DEBUG=1` en `scraper.service`. La Pi arranca en modo producción por defecto.
-- **Flujo deploy actual**: el usuario clonó en `~/bots/oposiciones/ScraperOposicion` (no `/opt`). El fix `a57d1c8` permite ambas rutas via `install.sh [INSTALL_DIR]`. El deploy correcto en Pi requiere re-ejecutar `install.sh` con el path real del usuario.
+- **Política actual de notificación**: producción silenciosa (solo en cambios). Para activar always-notify (heartbeat cada 5 min): `SCRAPER_DEBUG=1` en `telegram.env` o `Environment=SCRAPER_DEBUG=1` en `scraper.service`. La Pi arranca en modo producción por defecto. **Cambiar el env NO requiere desinstalar**: editar `/etc/scraper-oposicion/telegram.env`, comentar/borrar `SCRAPER_DEBUG=1`, y listo. El `Type=oneshot` lee el env en cada ejecución.
+- **Deploy en Pi funcionando**: copia correcta en `~/bots/oposiciones/ScraperOposicion` (no `/opt/`), systemd timer activo, mensajes a Telegram cuando hay cambios.
 - **`.gitignore` cubre** `scripts/raspberry/telegram.env` por seguridad (decidido por el usuario en `14d4f36`), aunque el env real vive en `/etc/scraper-oposicion/`.
