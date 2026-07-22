@@ -99,7 +99,7 @@ ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs             
 - **D7**: política notify = cada poll = 1 mensaje (288/día, literal de D3).
 - **D8**: formato = 1 único mensaje Markdown con estado de ambas webs.
 - **D9**: persistencia del fingerprint entre reinicios = fichero `state/<siteId>.fingerprint`.
-- **D10'**: detección híbrida HEAD-first (Last-Modified/ETag) con fallback a SHA-256 sobre HTML normalizado (cheerio strips scripts/styles/comments, whitespace colapsado).
+- **D10'**: **hash-only** (siempre GET + SHA-256 del HTML normalizado). Inicialmente híbrida HEAD-first → hash-fallback, descartada por falsos positivos (las webs CM regeneran `Last-Modified` sin cambio de contenido real, verificado por el usuario en Chrome DevTools). ADR-004 actualizado. Funciones `fetchHead()` y constante `HEAD_TIMEOUT_MS` eliminadas.
 - **D11**: scheduling = systemd timer + service (vs cron) — justificado por `After=network-online.target`, `Restart=on-failure`, `journalctl`.
 - **D12**: logging = `journalctl` + `logs/scraper.log` rotado (1 MB → 500 KB).
 - **D13**: estructura de estado = `state/<siteId>.fingerprint` (elimina `state.txt`).

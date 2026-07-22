@@ -1,9 +1,12 @@
 /**
  * Monitor de oposiciones — multi-site
- * Detecta cambios en N páginas web mediante:
- *   1) HEAD-first: usa Last-Modified o ETag si el servidor lo envía.
- *   2) Fallback: SHA-256 sobre HTML normalizado.
+ * Detecta cambios en N páginas web calculando el SHA-256 del HTML normalizado
+ * (cheerio strips scripts/styles/comentarios, whitespace colapsado).
  * Persistencia por sitio en state/<siteId>.fingerprint.
+ *
+ * Histórico: hubo una rama HEAD-first (Last-Modified/ETag) que se descartó
+ * porque las webs de la CM regeneran esos headers sin cambio de contenido real,
+ * generando falsos positivos.
  */
 
 import { readFile, writeFile, rename, appendFile, stat, truncate, mkdir } from "node:fs/promises";
@@ -15,7 +18,6 @@ import * as cheerio from "cheerio";
 const SITES_FILE = "sites.json";
 const STATE_DIR = "state";
 const INIT_FLAG = `${STATE_DIR}/.initialized`;
-const HEAD_TIMEOUT_MS = 10_000;
 const GET_TIMEOUT_MS = 30_000;
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
@@ -69,23 +71,6 @@ async function loadSites() {
 // ============================================================
 
 /**
- * HEAD request para inspeccionar Last-Modified y ETag sin descargar el body.
- * @param {string} url
- * @returns {Promise<{lastModified: string|null, etag: string|null}>}
- */
-async function fetchHead(url) {
-  const response = await axios.head(url, {
-    headers: { "User-Agent": USER_AGENT },
-    timeout: HEAD_TIMEOUT_MS,
-    validateStatus: () => true, // no tirar en 4xx/5xx; queremos leer headers si los hay
-  });
-  return {
-    lastModified: response.headers["last-modified"] || null,
-    etag: response.headers["etag"] || null,
-  };
-}
-
-/**
  * GET request del HTML completo.
  * @param {string} url
  * @returns {Promise<string>}
@@ -103,8 +88,19 @@ async function fetchPage(url) {
 
 
 // ============================================================
-// PARTE 3: DETECCIÓN DE FINGERPRINT (híbrido HEAD-first + hash-fallback)
+// PARTE 3: DETECCIÓN DE FINGERPRINT (hash-only)
 // ============================================================
+//
+// Estrategia única: SHA-256 sobre HTML normalizado.
+// Antes había una rama HEAD-first (Last-Modified/ETag) que era más rápida pero
+// generaba falsos positivos: muchos servidores (incluidas las webs de la CM)
+// regeneran esos headers en cada respuesta aunque el contenido no cambie
+// (CDNs, balanceadores, A/B testing, IDs de sesión). Solo el contenido real
+// es señal fiable → siempre GET + hash.
+//
+// Trade-off: más bandwidth por poll (~200 KB × 2 sitios × 288 polls/día ≈
+// 115 MB/día) a cambio de cero falsos positivos por drift de headers.
+
 
 /**
  * Normaliza el HTML y calcula su SHA-256.
@@ -125,24 +121,11 @@ function normalizeAndHash(html) {
 }
 
 /**
- * Detecta el fingerprint de un sitio.
- * Estrategia:
- *   1) HEAD → si lastModified presente, devuelve { tipo: "last-modified", valor }.
- *   2) Si no, si etag presente, devuelve { tipo: "etag", valor }.
- *   3) Si no, GET → normalizeAndHash → { tipo: "sha256", valor }.
+ * Detecta el fingerprint de un sitio: siempre GET + SHA-256 del HTML normalizado.
  * @param {{id: string, url: string}} site
  * @returns {Promise<{tipo: string, valor: string, detectionMethod: string}>}
  */
 async function detectFingerprint(site) {
-  const { lastModified, etag } = await fetchHead(site.url);
-
-  if (lastModified) {
-    return { tipo: "last-modified", valor: lastModified, detectionMethod: "last-modified" };
-  }
-  if (etag) {
-    return { tipo: "etag", valor: etag, detectionMethod: "etag" };
-  }
-
   const html = await fetchPage(site.url);
   const hash = normalizeAndHash(html);
   return { tipo: "sha256", valor: hash, detectionMethod: "sha256" };

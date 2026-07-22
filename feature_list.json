@@ -24,11 +24,11 @@
     },
     {
       "id": "multi-site-hash",
-      "name": "Deteccion multi-site por fingerprint hibrido",
+      "name": "Deteccion multi-site por fingerprint SHA-256 (hash-only)",
       "phase": 3,
       "status": "completed",
       "completed_at": "2026-07-22",
-      "description": "monitor.js monitoriza N webs declaradas en sites.json (raíz del repo). Deteccion hibrida: HEAD-first (Last-Modified/ETag) con fallback a SHA-256 sobre HTML normalizado. Persistencia atomica en state/<siteId>.fingerprint. Politica de notificacion: modo produccion (default) solo envia a Telegram cuando hay cambios; modo debug (SCRAPER_DEBUG=1) envia siempre.",
+      "description": "monitor.js monitoriza N webs declaradas en sites.json (raíz del repo). Deteccion por SHA-256 sobre HTML normalizado (cheerio strips scripts/styles/comentarios, whitespace colapsado). Persistencia atomica en state/<siteId>.fingerprint. Politica de notificacion: modo produccion (default) solo envia a Telegram cuando hay cambios; modo debug (SCRAPER_DEBUG=1) envia siempre. Hash-only: la rama HEAD-first (Last-Modified/ETag) fue descartada porque los servidores CM regeneran esos headers sin cambio de contenido real.",
       "files": [
         "monitor.js",
         "sites.json",

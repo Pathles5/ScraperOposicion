@@ -51,31 +51,34 @@ El scraper se ejecuta en una Raspberry Pi local con systemd timer (cada 5 min). 
 
 ---
 
-## ADR-004: Detección de cambios por fingerprint híbrido (HEAD-first + hash-fallback) vs regex
+## ADR-004: Detección de cambios por SHA-256 del HTML normalizado (hash-only)
 
-**Fecha:** 2026-07-22
+**Fecha:** 2026-07-22 (actualizado 2026-07-22: hash-only, sin rama HEAD-first)
 **Estado:** Aceptado
 
 ### Contexto
 Fase 1 implementó una regex agnóstica que capturaba cualquier contenido tras "Última actualización:". Esto requirió 2 fixes (task-102 tolerante a multi-línea, task-103 agnóstica al formato). El usuario quiere pasar a una detección más robusta que no dependa de un patrón textual concreto y que soporte webs sin esa etiqueta.
 
-### Decisión
-Se adopta detección por **fingerprint**:
-1. Petición HEAD; si `Last-Modified` o `ETag` están presentes → guardar y comparar.
-2. Si no → GET + SHA-256 sobre HTML normalizado (cheerio elimina `<script>`, `<style>`, comentarios; collapse whitespace).
+Decisión inicial (Fase 3 close): detección **híbrida** HEAD-first con fallback a SHA-256. La idea era ahorrar bandwidth usando HEAD cuando el servidor enviaba `Last-Modified`/`ETag`.
 
-El fingerprint se guarda en `state/<siteId>.fingerprint` con formato `<tipo>\n<valor>\n`.
+Problema detectado en producción: las webs de la CM (comunidad.madrid, sede.comunidad.madrid) **regeneran `Last-Modified` en cada respuesta aunque el contenido no cambie** (probablemente por CDN, balanceador, A/B testing o session IDs en headers). Resultado: la rama HEAD-first generaba falsos positivos constantes. Verificado por el usuario inspeccionando `Last-Modified` en DevTools Network tab.
+
+### Decisión
+Se adopta detección **hash-only**: siempre GET + SHA-256 del HTML normalizado. Cheerio elimina `<script>`, `<style>`, comentarios HTML; el texto visible se colapsa (whitespace → espacio único) y se trimea; se calcula SHA-256 hex sobre ese texto.
+
+El fingerprint se guarda en `state/<siteId>.fingerprint` con formato `<tipo>\n<valor>\n` (donde `tipo="sha256"` siempre; el formato se conserva para compatibilidad con state files previos).
 
 ### Alternativas consideradas
-- **Mantener regex agnóstica** — frágil ante cambios de estructura HTML.
+- **Mantener regex agnóstica** (Fase 1) — frágil ante cambios de estructura HTML.
 - **Hash SHA-256 del HTML crudo sin normalizar** — demasiados falsos positivos por contenido dinámico (analytics, session IDs).
-- **Solo HEAD** — depende de que el servidor envíe headers, no todas las webs lo hacen.
-- **Diff visual (rendered HTML)** — overkill para este caso.
+- **HEAD-first puro sin hash-fallback** — depende de la honestidad del servidor con `Last-Modified`, que no se cumple en producción.
+- **Híbrido HEAD-first + hash-fallback** (decisión original) — la rama HEAD-first da falsos positivos en servidores que regeneran headers sin cambio real.
+- **Per-site config** (`sites.json` con `"detection": "hash"|"headers"`) — más flexible pero añade complejidad innecesaria para N=2 sitios donde ambos sufren el mismo problema.
 
 ### Consecuencias
-- **Positivas**: detecta CUALQUIER cambio, no solo el de "Última actualización:"; funciona en webs sin esa etiqueta; universal.
-- **Negativas**: descarga el body cuando no hay headers (más bandwidth); puede tener falsos positivos si la web tiene banners rotativos muy agresivos (mitigado por normalización).
-- **Neutras**: en sitios con `Last-Modified` válido, el ahorro de bandwidth es notable (HEAD no transfiere body).
+- **Positivas**: detecta CUALQUIER cambio real de contenido (no solo "Última actualización:"); funciona en webs sin etiqueta textual; cero falsos positivos por drift de headers HTTP.
+- **Negativas**: descarga el body siempre (~200 KB × 2 sitios × 288 polls/día ≈ 115 MB/día). Aceptable para una Pi con internet doméstico.
+- **Neutras**: la primera ejecución tras un cambio de estrategia puede notificar un único falso positivo si los state files antiguos (`tipo=last-modified`) se comparan con fingerprints nuevos (`tipo=sha256`). Solución: borrar `state/*.fingerprint` antes del deploy, o ignorar el primer mensaje.
 
 ---
 

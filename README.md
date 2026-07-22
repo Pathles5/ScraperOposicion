@@ -8,7 +8,7 @@
 
 1. Carga una lista declarativa de N webs desde `sites.json` (raíz del repo).
 2. Cada 5 minutos (systemd timer en la Raspberry Pi) itera sobre cada sitio.
-3. Detecta cambios con estrategia **híbrida**: HEAD-first (`Last-Modified`/`ETag`) con fallback a SHA-256 sobre HTML normalizado.
+3. Detecta cambios calculando **SHA-256 del HTML normalizado** (cheerio quita scripts/styles/comentarios, whitespace colapsado). Anteriormente había una rama HEAD-first que se descartó: las webs de la CM regeneran `Last-Modified` en cada respuesta sin cambio real de contenido, generando falsos positivos.
 4. Persiste el fingerprint por sitio en `state/<siteId>.fingerprint` (escritura atómica).
 5. Envía un mensaje Markdown a Telegram con el estado de las N webs (`sendTelegramSummary`) — solo si hay cambios (modo producción) o en cada poll si `SCRAPER_DEBUG=1` (modo debug).
 
@@ -93,8 +93,8 @@ El script está organizado en secciones claramente diferenciadas. La fuente de v
 | Sección | Funciones | Responsabilidad |
 |---|---|---|
 | **1. Configuración** | `loadSites()` | Lee y valida `sites.json` en la raíz (id, name, url). |
-| **2. Scraping** | `fetchHead(url)`, `fetchPage(url)` | HEAD (sin body) o GET completo. |
-| **3. Detección de fingerprint** | `normalizeAndHash(html)`, `detectFingerprint(site)` | Híbrido HEAD-first → hash-fallback. |
+| **2. Scraping** | `fetchPage(url)` | GET completo (sin HEAD, ver §3). |
+| **3. Detección de fingerprint** | `normalizeAndHash(html)`, `detectFingerprint(site)` | SHA-256 sobre HTML normalizado. |
 | **4. Persistencia** | `loadStoredFingerprint()`, `saveStoredFingerprint()` | Atomic write en `state/<siteId>.fingerprint`. |
 | **5. Primera ejecución** | `isFirstRun()`, `markInitialized()` | Flag en `state/.initialized`. |
 | **6. Notificación** | `sendTelegramSummary(summary, { firstRun })` | Telegram: solo cuando hay cambios (default) o siempre si `SCRAPER_DEBUG=1`. |

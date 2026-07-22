@@ -42,7 +42,7 @@ Los agentes nunca importan adapters directamente. Usan identificadores lógicos 
 
 - **Sites config** (`sites.json` en la raíz del repo): declarativo, commiteable.
 - **State store** (`state/<siteId>.fingerprint`): fichero plano por sitio, escritura atómica.
-- **Detection engine** (`monitor.js`): híbrido HEAD-first / hash-fallback.
+- **Detection engine** (`monitor.js`): hash-only. SHA-256 sobre HTML normalizado (cheerio strips scripts/styles/comentarios, whitespace colapsado). Antes había una rama HEAD-first que se descartó porque las webs de la CM regeneran `Last-Modified` sin cambio de contenido real.
 - **Notifier** (`sendTelegramSummary` en `monitor.js`): 1 mensaje Markdown.
 - **Scheduler** (systemd): `scripts/raspberry/scraper.timer` + `scraper.service`.
 - **Logger** (dual): `journalctl` + `logs/scraper.log` rotado.
@@ -68,11 +68,8 @@ Los agentes nunca importan adapters directamente. Usan identificadores lógicos 
 │     ├─ loadSites() ←── sites.json (raíz)                       │
 │     │                                                            │
 │     └─ for each site:                                            │
-│          ├─ fetchHead(url) → { lastModified, etag }              │
-│          │   └─ Si presentes: usar como fingerprint              │
-│          ├─ else:                                                │
-│          │   ├─ fetchPage(url) → html                            │
-│          │   └─ normalizeAndHash(html) → sha256 (cheerio)        │
+│          ├─ fetchPage(url) → html                                │
+│          ├─ normalizeAndHash(html) → sha256 (cheerio)            │
 │          ├─ loadStoredFingerprint(siteId) ← state/<id>.fp        │
 │          ├─ compare: changed = current !== previous              │
 │          ├─ saveStoredFingerprint(siteId, current)  [atomic]     │

@@ -87,7 +87,7 @@ Entregables:
 
 Entregables:
 
-- `monitor.js` → refactor a multi-site con detección híbrida HEAD-first / SHA-256 (fallback).
+- `monitor.js` → refactor a multi-site con detección **hash-only** (SHA-256 del HTML normalizado). Inicialmente híbrida (HEAD-first → SHA-256) pero la rama HEAD-first se descartó: las webs de la CM regeneran `Last-Modified` en cada respuesta sin cambio de contenido real.
 - `sites.json` (raíz) → 2 webs declaradas (CM Educacion + CM Sede).
 - `state/<siteId>.fingerprint` → persistencia por sitio (atomic write).
 - `sendTelegramSummary` → 1 mensaje Markdown con N sitios. Política producción: solo notifica cuando hay cambios. Política debug (`SCRAPER_DEBUG=1`): notifica siempre.
