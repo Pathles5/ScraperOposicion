@@ -177,6 +177,10 @@ ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs             
 - Tests (ADR-002 vigente: solo `pnpm lint`).
 - Refactor a arquitectura hexagonal (también fuera de alcance en Fase 3).
 
+### Decisiones descartadas (con razón)
+
+- **Scraping de AliExpress order tracking** (`https://www.aliexpress.com/p/tracking/index.html?...`): evaluado en esta sesión, descartado por el usuario. La página requiere login (sesión + CSRF), es una SPA renderizada en JS, y AliExpress tiene anti-bot agresivo. La única implementación viable sería con headless browser (Playwright/Chromium), pero el footprint de Chromium (~150 MB + 200–500 MB RAM + CPU alto en cada poll) no es aceptable para una Raspberry Pi. Decisión: usar la app de AliExpress + 17track para tracking personal. Si en el futuro se necesita scrapear webs con login, evaluar opciones más ligeras primero (API oficial del sitio, scraping híbrido con cookies de larga duración).
+
 ---
 
 ## Cómo retomar la sesión
