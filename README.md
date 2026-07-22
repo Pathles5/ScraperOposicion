@@ -46,9 +46,12 @@ pnpm lint
 El scraper se ejecuta en una Raspberry Pi con systemd timer (cada 5 min).
 Para desplegar:
 
-1. Clonar el repo en `/opt/scraper-oposicion`.
+1. Clonar el repo donde prefieras:
+   - **Opción A** (recomendada): `/opt/scraper-oposicion`
+   - **Opción B** (sin sudo para el código): `~/bots/ScraperOposicion` u otra ruta en tu home
 2. Configurar credenciales en `/etc/scraper-oposicion/telegram.env`.
-3. Ejecutar `./scripts/raspberry/install.sh`.
+3. Ejecutar `sudo ./scripts/raspberry/install.sh` (acepta la ruta destino como argumento: `sudo ./install.sh "$HOME/bots/ScraperOposicion"`).
+4. `install.sh` detecta automáticamente la ruta de `node` y genera `scraper.service` con los paths correctos.
 
 Detalle completo: [`scripts/raspberry/README.md`](scripts/raspberry/README.md).
 
@@ -58,36 +61,30 @@ Detalle completo: [`scripts/raspberry/README.md`](scripts/raspberry/README.md).
 systemctl status scraper.timer          # estado del timer
 systemctl list-timers scraper.timer     # próxima ejecución
 journalctl -u scraper.service -f        # logs en vivo
-tail -f /opt/scraper-oposicion/logs/scraper.log   # logs fichero rotado
+tail -f <INSTALL_DIR>/logs/scraper.log  # logs fichero rotado (INSTALL_DIR por defecto /opt/scraper-oposicion)
 ```
-
-### GitHub Actions (legacy)
-
-El workflow `.github/workflows/monitor.yml` está desactivado (cron comentado) y solo
-se ejecuta vía `workflow_dispatch` manual. El bot principal corre en la Raspberry Pi.
 
 ## Project Structure
 
 ```
 .
-├── .github/
-│   └── workflows/
-│       └── monitor.yml       # Legacy (cron desactivado, solo workflow_dispatch)
 ├── .opencode/                # Harness de agentes (no es producto)
 │   ├── agents/               # Definiciones de los 5 agentes
-│   ├── tasks/                # HANDOFF + tasks (archivados al cierre de fase)
-│   └── config/
-│       └── sites.json        # Lista declarativa de webs a monitorizar
+│   └── tasks/                # HANDOFF + tasks (archivados al cierre de fase)
 ├── docs/                     # Documentacion canonica
 ├── scripts/
 │   └── raspberry/            # Setup systemd (service + timer + install.sh + README)
+├── sites.json                # Lista declarativa de webs a monitorizar
 ├── monitor.js                # Entry point multi-site
 ├── state/                    # Estado runtime (gitignored): <siteId>.fingerprint + .initialized
 ├── logs/                     # Logs runtime (gitignored): scraper.log rotado
+├── .env                      # Credenciales Telegram para dev local (gitignored)
 ├── package.json              # ESM, axios, cheerio
 ├── eslint.config.js          # ESLint 9 plano
 └── README.md
 ```
+
+> **No hay GitHub Actions** en esta rama. La automatización corre exclusivamente en la Raspberry Pi con systemd.
 
 ## Architecture (monitor.js)
 
@@ -126,7 +123,7 @@ El script está organizado en secciones claramente diferenciadas. La fuente de v
 | HTTP Client | axios ^1.7.7 |
 | HTML Parser | cheerio ^1.0.0 |
 | Linting | ESLint 9 (flat config, sin Prettier) |
-| Automation | systemd timer + service en Raspberry Pi (GitHub Actions queda como legacy) |
+| Automation | systemd timer + service en Raspberry Pi (sin GitHub Actions en esta rama) |
 | Notification | Telegram Bot API (`@OposicionCamBot`) |
 | Tests | (no incluidos — ver ADR-002) |
 

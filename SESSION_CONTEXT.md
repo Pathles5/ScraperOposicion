@@ -10,9 +10,9 @@
 ### Ramas y commits
 
 - **Rama activa:** `local` (trackea `origin/local`)
-- **Último commit:** `a58d012 feat(notify): revert always-notify by default, add SCRAPER_DEBUG switch`
-- **Diferencia con origin:** 8 commits ahead (todos pushed)
-- **Working tree:** limpio salvo `.opencode/tasks/task-304-cleanup-docs-adrs.md` untracked
+- **Último commit:** `a57d1c8 fix(deploy): install.sh auto-detects node path and accepts custom install dir`
+- **Diferencia con origin:** 9 commits ahead (todos pushed)
+- **Working tree:** limpio
 
 ### Fases
 
@@ -21,7 +21,9 @@
 | 0 — Foundation | ✅ Completado | `ea890ba chore: bootstrap project documentation` |
 | 1 — Monitor CM Educacion | ✅ Completado | `5d57fce docs: register Fase 1 close` |
 | 2 — Notificación Telegram | ✅ Completado | `afc2e2b docs: register Fase 2 close` |
-| 3 — Scraper local Raspberry Pi | ✅ Completado | `ab56ed7 docs: register Fase 3 close` + 4 commits posteriores (`3040920`, `03bd2bb`, `b82435b`, `a58d012`) |
+| 3 — Scraper local Raspberry Pi | ✅ Completado | `ab56ed7 docs: register Fase 3 close` + 5 commits posteriores (`3040920`, `03bd2bb`, `b82435b`, `a58d012`, `a57d1c8`) |
+
+> Commits `3b270b3` y `14d4f36` fueron hechos directamente por el usuario desde la Raspberry Pi (archivó task-304 + .gitignore tweak).
 
 ### ADRs registrados (6)
 
@@ -64,17 +66,20 @@ Esta sesión retomó el HANDOFF-FASE-3.md que estaba en estado DRAFT desde 2026-
    - Refrescar `SESSION_CONTEXT.md` con el cierre completo de Fase 3 (`b82435b`).
    - **Revertir** la política always-notify tras reconsideración del usuario: ahora solo notifica en cambios por defecto, con switch `SCRAPER_DEBUG=1` para volver al always-notify (`a58d012`).
 
-### Commits realizados (9)
+### Commits realizados (11 — incluye los 2 commits del usuario desde la Pi)
 
 ```
-a58d012 feat(notify): revert always-notify by default, add SCRAPER_DEBUG switch
-b82435b docs(session): refresh SESSION_CONTEXT with full Fase 3 close + cleanup history
-03bd2bb fix(notify): use Madrid local time in Telegram message timestamp
-3040920 chore(repo): move sites.json to root + drop GitHub Actions workflow
-ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs
-789ee73 feat(raspberry): systemd timer + service + install script + rotated logging
-223d4cb feat(monitor): real Telegram notification with always-notify + Markdown
-59f4c0b feat(monitor): multi-site fingerprint detection (HEAD-first + SHA-256 fallback)
+a57d1c8 fix(deploy): install.sh auto-detects node path and accepts custom install dir   ← leader
+14d4f36 gitignore                                                                       ← usuario desde Pi
+3b270b3 Save session                                                                    ← usuario desde Pi (archivó task-304)
+a58d012 feat(notify): revert always-notify by default, add SCRAPER_DEBUG switch          ← leader
+b82435b docs(session): refresh SESSION_CONTEXT with full Fase 3 close + cleanup history  ← leader
+03bd2bb fix(notify): use Madrid local time in Telegram message timestamp                ← leader
+3040920 chore(repo): move sites.json to root + drop GitHub Actions workflow             ← leader
+ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs                     ← leader
+789ee73 feat(raspberry): systemd timer + service + install script + rotated logging      ← leader (task-303)
+223d4cb feat(monitor): real Telegram notification with always-notify + Markdown         ← leader (task-302)
+59f4c0b feat(monitor): multi-site fingerprint detection (HEAD-first + SHA-256 fallback) ← leader (task-301)
 ```
 
 ### Decisiones clave validadas con el usuario
@@ -112,6 +117,7 @@ ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs
 4. **task-304 — `task-301/302/303` archivados aparecen como `new file` (no `rename`)**: los specs estaban untracked antes de la task, así que `git mv` requirió `git add` previo. La historia del filesystem es correcta, solo cambia la etiqueta del diff.
 5. **task-304 — `SESSION_CONTEXT.md` staged con `git add -f`**: estaba en `.gitignore` por convención de Fase 0 ("no se commitea"). El spec de task-304 revirtió esa regla para commitear el contexto actualizado.
 6. **task-304 leader fix — 4 secciones de `README.md` actualizadas directamente por el leader**: el spec no las incluía pero quedaban en estado Fase 1/2 (intro, Project Structure, Architecture table, Tech Stack). El leader las arregló antes de commitear para evitar abrir una task-305.
+7. **deploy fix (post-Fase 3) — `install.sh` reescrito para auto-detectar `node`**: el usuario detectó `Unable to locate executable '/usr/bin/node'` en su primer arranque real. El `scraper.service` commiteado tenía `/usr/bin/node` hardcodeado y `install.sh` asumía `/opt/...`. Leader reescribió `install.sh` con `command -v node` + arg de ruta destino + generación dinámica del service.
 
 ### Limitaciones conocidas del código actual
 
@@ -120,6 +126,7 @@ ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs
 - **`state/.initialized` se marca ANTES del envío Telegram**: si Telegram falla en el primer poll, en el siguiente poll el flag ya está puesto y no se re-enviará "🟢 Monitor arrancado". Comportamiento del spec, no bug.
 - **`systemd-analyze verify` no validado en dev** (Windows + WSL stub): la validación del syntax INI de los units queda para el primer deploy real en la Pi.
 - **BOM en HANDOFF-FASE-3.md**: presente al cierre (cosmético, no rompe nada).
+- **Primer deploy en Pi falló (2026-07-22)**: systemd no encontró `node` en `/usr/bin/node`. Solucionado por `a57d1c8` (auto-detect en `install.sh`). El usuario debe re-ejecutar `install.sh` con el path correcto (`sudo ./scripts/raspberry/install.sh "$HOME/bots/.../ScraperOposicion"`).
 
 ---
 
@@ -127,28 +134,24 @@ ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs
 
 ### Inmediatos (orden recomendado)
 
-1. **Push a `origin/local`** — ya hecho en esta sesión. Si la rama queda atrás por algún push remoto, rebase.
-2. **Merge `local` → `main`** (opcional, decisión del usuario): el spec del HANDOFF §9.8 lo deja al usuario tras validación en Pi.
-3. **Deploy en Raspberry Pi real** (cuando el usuario decida probarlo):
+1. **Recuperar el deploy en Pi** (el fix `a57d1c8` ya está pushed):
    ```bash
-   cd /opt
-   sudo git clone https://github.com/<owner>/scraper-oposicion.git
-   sudo chown -R $USER:$USER /opt/scraper-oposicion
-   cd /opt/scraper-oposicion
-   pnpm install --production
-   sudo cp scripts/raspberry/telegram.env.example /etc/scraper-oposicion/telegram.env
-   sudo nano /etc/scraper-oposicion/telegram.env   # rellenar tokens
-   sudo ./scripts/raspberry/install.sh
+   cd ~/bots/oposiciones/ScraperOposicion   # o donde lo clonaras
+   git pull
+   sudo ./scripts/raspberry/install.sh "$HOME/bots/oposiciones/ScraperOposicion"
+   systemctl cat scraper.service | grep -E "ExecStart|WorkingDirectory"
+   journalctl -u scraper.service -f
    ```
-   Verificar con `systemctl status scraper.timer` y `journalctl -u scraper.service -f`.
-4. **Validación 24h** (primer `next_actions` en `feature_list.json`): comprobar que no hay falsos positivos y que `Restart=on-failure` funciona ante errores transitorios.
-5. **Validación con credenciales reales**: el developer no tenía `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` en su entorno dev, así que el envío real solo se probará cuando el bot corra en la Pi con `/etc/scraper-oposicion/telegram.env` configurado.
+   Si `systemctl cat` muestra paths incorrectos, el `install.sh` no detectó bien; ejecuta `which node` y reporta.
+2. **Validación 24h** (primer `next_actions` en `feature_list.json`): comprobar que no hay falsos positivos y que `Restart=on-failure` funciona ante errores transitorios.
+3. **Validación con credenciales reales**: el developer no tenía `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` en su entorno dev, así que el envío real solo se probará cuando el bot corra en la Pi con `/etc/scraper-oposicion/telegram.env` configurado.
+4. **Merge `local` → `main`** (opcional, decisión del usuario): el spec del HANDOFF §9.8 lo deja al usuario tras validación en Pi.
 
 ### Opcionales (limpieza)
 
-6. **Archivar `task-304-cleanup-docs-adrs.md`**: sigue untracked. Si quieres, `git mv` a `.archived.md` y commit. Convención del proyecto: archivado al cierre de fase.
-7. **Limpiar BOM de HANDOFF-FASE-3.md**: cosmético.
-8. **Forzar `systemd-analyze verify`** en Pi para validar syntax INI de los units.
+5. **Limpiar BOM de HANDOFF-FASE-3.md**: cosmético.
+6. **Forzar `systemd-analyze verify`** en Pi para validar syntax INI de los units.
+7. **Revisar si `git mv` el archivo `task-304` archivado es visible en el repo**: el usuario lo hizo con `3b270b3 Save session`. Confirmar que el archivo está bien.
 
 ### Ideas para Fase 4 (NO iniciadas, solo documentadas como referencia)
 
@@ -165,9 +168,9 @@ ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs
 1. **Salir de esta sesión y volver más tarde.** El contexto completo está aquí.
 2. **Al volver**, el leader debe:
    - Leer este fichero (especialmente "Cambios de esta sesión" y "Próximos pasos").
-   - Verificar `git log --oneline -10` para confirmar el último commit (`a58d012`).
+   - Verificar `git log --oneline -10` para confirmar el último commit (`a57d1c8`).
    - Verificar `git status` para confirmar working tree limpio.
-   - Preguntar al usuario: "¿Seguimos con el deploy en Pi o quieres empezar Fase 4?"
+   - Preguntar al usuario: "¿Funcionó el deploy en Pi tras el re-run de install.sh? ¿Algún issue nuevo?"
 3. **No re-preguntar decisiones D1–D18** ya validadas — están documentadas arriba.
 
 ---
@@ -200,7 +203,8 @@ ab56ed7 docs: register Fase 3 close + multi-site + systemd + 4 ADRs
 - **Working directory del agent:** `C:\Users\pathl\Workspace\ScraperOposicion`.
 - **Shell:** PowerShell 5.1 en Windows. El developer tuvo que usar Git Bash (`C:\Program Files\Git\bin\bash.exe`) para `bash -n` de los scripts.
 - **Permisos:** `permission: allow` global en `~/.config/opencode/opencode.json`. Los agentes tienen permisos ampliados commiteados en `.opencode/agents/*.md`.
-- **Push al cerrar:** hecho. `origin/local` está 8 commits ahead de cuando empezó esta sesión.
-- **Convención archivado tasks**: tras cierre de fase, los specs se renombran a `.archived.md` para preservar histórico sin contaminar el directorio activo. `task-304` quedó fuera de este ciclo (untracked) — archivado a criterio del usuario.
+- **Push al cerrar:** hecho. `origin/local` está 9 commits ahead del HEAD inicial de la sesión.
+- **Convención archivado tasks**: tras cierre de fase, los specs se renombran a `.archived.md` para preservar histórico sin contaminar el directorio activo. El usuario archivó `task-304` él mismo desde la Pi (`3b270b3`).
 - **Política actual de notificación**: producción silenciosa (solo en cambios). Para activar always-notify (heartbeat cada 5 min): `SCRAPER_DEBUG=1` en `telegram.env` o `Environment=SCRAPER_DEBUG=1` en `scraper.service`. La Pi arranca en modo producción por defecto.
-- **Issue detectado en primer arranque en Pi** (2026-07-22): systemd fallaba con `Unable to locate executable '/usr/bin/node'` porque `node` no estaba en esa ruta y el `scraper.service` commiteado tenía `/usr/bin/node` hardcodeado. Solucionado en commit (siguiente): `install.sh` detecta `node` automáticamente y genera el service con los paths correctos. Si vuelve a fallar, `which node` muestra la ruta correcta.
+- **Flujo deploy actual**: el usuario clonó en `~/bots/oposiciones/ScraperOposicion` (no `/opt`). El fix `a57d1c8` permite ambas rutas via `install.sh [INSTALL_DIR]`. El deploy correcto en Pi requiere re-ejecutar `install.sh` con el path real del usuario.
+- **`.gitignore` cubre** `scripts/raspberry/telegram.env` por seguridad (decidido por el usuario en `14d4f36`), aunque el env real vive en `/etc/scraper-oposicion/`.

@@ -15,6 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - `scripts/raspberry/install.sh` ahora detecta automáticamente el binario de `node` (vía `command -v node`), valida que sea ≥ 20, acepta el directorio destino como argumento (default `/opt/scraper-oposicion`), y genera `scraper.service` con los paths correctos al desplegar. Antes copiaba un `scraper.service` estático con `/usr/bin/node` hardcodeado, lo que fallaba si Node estaba en otra ruta (`/usr/local/bin/node`, `~/.nvm/.../bin/node`, etc.). También usa `SUDO_USER` para el `chown` (antes usaba `whoami` que devolvía `root` al ejecutar con sudo).
+- `scripts/raspberry/uninstall.sh` también acepta `INSTALL_DIR` como argumento (mismo contrato que `install.sh`), para borrar correctamente la copia instalada cuando se eligió una ruta distinta de la default.
+- `scripts/raspberry/scraper.service` commiteado: ahora es una **plantilla de referencia** (header explica que `install.sh` genera el real). Si el usuario copia este fichero a mano, debe editar `ExecStart` y `WorkingDirectory`.
+
+### Notes
+- **Primer arranque real en Raspberry Pi** (2026-07-22): systemd falló con `Unable to locate executable '/usr/bin/node'` porque Node estaba en otra ruta. El fix `a57d1c8` lo corrige. El usuario debe re-ejecutar `install.sh` para regenerar el `scraper.service` con el path correcto.
+- **Commits del usuario desde la Pi**:
+  - `3b270b3 Save session` — archivó `.opencode/tasks/task-304-cleanup-docs-adrs.md` (que estaba untracked).
+  - `14d4f36 gitignore` — añadió `scripts/raspberry/telegram.env` a `.gitignore` (defensivo: el env real vive en `/etc/scraper-oposicion/`, pero si alguien copia uno local a `scripts/raspberry/` no se commitea por accidente).
 
 ## [Fase 3] — 2026-07-22 — Scraper local en Raspberry Pi (multi-site)
 
