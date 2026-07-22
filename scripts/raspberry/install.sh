@@ -16,13 +16,64 @@ echo "[install] Proyecto: ${PROJECT_DIR}"
 echo "[install] Destino:  ${INSTALL_DIR}"
 echo "[install] Usuario:  ${ACTUAL_USER}"
 
-# Detectar binario de node
-NODE_BIN="$(command -v node 2>/dev/null || true)"
+# Detectar binario de node de forma robusta.
+# El problema típico: el usuario tiene node en ~/.../node/vXX/bin (nvm/fnm/custom)
+# y funciona como usuario normal, pero sudo resetea PATH al secure_path de
+# /etc/sudoers y no lo encuentra. Tres estrategias en orden:
+#   1) command -v node en el PATH actual (funciona si no se usa sudo, o si
+#      sudo preserva PATH, o si node está en /usr/bin).
+#   2) sudo -u SUDO_USER → command -v node en el login shell del usuario
+#      original. Activa nvm/fnm desde su .bashrc y resuelve la ruta real.
+#   3) Rutas absolutas comunes (apt/NodeSource/brew/snap).
+detect_node_bin() {
+  local node_bin=""
+
+  # 1) PATH actual
+  node_bin="$(command -v node 2>/dev/null || true)"
+  if [[ -n "${node_bin}" && -x "${node_bin}" ]]; then
+    echo "${node_bin}"
+    return 0
+  fi
+
+  # 2) Bajo el usuario original (cubre nvm/fnm/custom)
+  if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+    # -H = login shell (carga /etc/profile, ~/.bash_profile, ~/.bashrc, nvm, fnm…)
+    # -l  = explícitamente login shell (necesario con -c en bash moderno)
+    node_bin="$(sudo -u "${SUDO_USER}" -H bash -lc 'command -v node' 2>/dev/null || true)"
+    if [[ -n "${node_bin}" && -x "${node_bin}" ]]; then
+      echo "${node_bin}"
+      return 0
+    fi
+  fi
+
+  # 3) Rutas absolutas comunes (último recurso)
+  local path
+  for path in \
+    /usr/bin/node \
+    /usr/local/bin/node \
+    /opt/homebrew/bin/node \
+    /snap/bin/node; do
+    if [[ -x "${path}" ]]; then
+      echo "${path}"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+NODE_BIN="$(detect_node_bin || true)"
 if [[ -z "${NODE_BIN}" ]]; then
   echo "[install] ERROR: 'node' no se encuentra en PATH." >&2
-  echo "  Instálalo primero. Ejemplos:" >&2
-  echo "    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt install -y nodejs" >&2
-  echo "    sudo apt install -y nodejs   # versión vieja de los repos de la distro" >&2
+  echo "  Como usuario normal funciona: ${SUDO_USER:-user} tiene node en su PATH" >&2
+  echo "  (probablemente nvm/fnm/custom), pero sudo no lo ve." >&2
+  echo "" >&2
+  echo "  Opciones:" >&2
+  echo "    A) Instala node en una ruta accesible para sudo (recomendado):" >&2
+  echo "         curl -fsSL https://deb.nodesource.org/setup_24.x | sudo -E bash - && sudo apt install -y nodejs" >&2
+  echo "    B) Añade el dir de node al secure_path de /etc/sudoers:" >&2
+  echo "         Defaults  secure_path = ...:/home/${SUDO_USER:-user}/.nvm/versions/node/v24.18.0/bin" >&2
+  echo "    C) Ejecuta install.sh sin sudo (no recomendado: necesita sudo para los units y /etc/)." >&2
   exit 1
 fi
 echo "[install] node:     ${NODE_BIN}"
