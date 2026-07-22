@@ -6,7 +6,7 @@
 
 `scraper-oposicion` es un monitor ligero escrito en Node.js (ESM) que:
 
-1. Carga una lista declarativa de N webs desde `.opencode/config/sites.json`.
+1. Carga una lista declarativa de N webs desde `sites.json` (raíz del repo).
 2. Cada 5 minutos (systemd timer en la Raspberry Pi) itera sobre cada sitio.
 3. Detecta cambios con estrategia **híbrida**: HEAD-first (`Last-Modified`/`ETag`) con fallback a SHA-256 sobre HTML normalizado.
 4. Persiste el fingerprint por sitio en `state/<siteId>.fingerprint` (escritura atómica).
@@ -95,7 +95,7 @@ El script está organizado en secciones claramente diferenciadas. La fuente de v
 
 | Sección | Funciones | Responsabilidad |
 |---|---|---|
-| **1. Configuración** | `loadSites()` | Lee y valida `.opencode/config/sites.json` (id, name, url). |
+| **1. Configuración** | `loadSites()` | Lee y valida `sites.json` en la raíz (id, name, url). |
 | **2. Scraping** | `fetchHead(url)`, `fetchPage(url)` | HEAD (sin body) o GET completo. |
 | **3. Detección de fingerprint** | `normalizeAndHash(html)`, `detectFingerprint(site)` | Híbrido HEAD-first → hash-fallback. |
 | **4. Persistencia** | `loadStoredFingerprint()`, `saveStoredFingerprint()` | Atomic write en `state/<siteId>.fingerprint`. |

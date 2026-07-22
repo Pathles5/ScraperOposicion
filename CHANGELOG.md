@@ -6,11 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- `sites.json` movido de `.opencode/config/sites.json` a la raíz del repo. Razón: el directorio `.opencode/` es harness de agentes, no producto. Actualizado `monitor.js`, `README.md`, `docs/architecture.md`, `docs/roadmap.md` y `feature_list.json`.
+- `.github/workflows/monitor.yml` eliminado del repo (ya no hay GitHub Actions en esta rama; el bot corre exclusivamente en Raspberry Pi con systemd timer).
+- `.env` (raíz, ignorado por `.gitignore`) documentado con cabecera de comentarios para auto-explicarse (mismo estilo que `scripts/raspberry/telegram.env.example`).
+
 ## [Fase 3] — 2026-07-22 — Scraper local en Raspberry Pi (multi-site)
 
 ### Added
 - Detección de cambios **híbrida HEAD-first con fallback a hash SHA-256** sobre HTML normalizado (cheerio). Funciona con y sin headers `Last-Modified` / `ETag`.
-- Soporte **multi-site**: lista declarativa en `.opencode/config/sites.json`. Añadir/quitar webs no requiere tocar código.
+- Soporte **multi-site**: lista declarativa en `sites.json` (raíz del repo). Añadir/quitar webs no requiere tocar código.
 - Monitorizan **2 webs**: CM Educacion (oposiciones maestros) y CM Sede (oferta empleo oposiciones 2026).
 - **systemd timer + service** para scheduling cada 5 min en Raspberry Pi (`scripts/raspberry/`).
 - Script de instalación idempotente (`scripts/raspberry/install.sh`).
@@ -28,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Regex agnóstica de Fase 1 (`UPDATE_REGEX`, `extractUpdateDate`).
 - Función `notifyChange` de Fase 2 (sustituida por `sendTelegramSummary`).
 - Cron del workflow `.github/workflows/monitor.yml` (queda comentado, ver nota legacy).
+- Workflow completo (posteriormente, en este [Unreleased]).
 
 ### Fixed
 - n/a.

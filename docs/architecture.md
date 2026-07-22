@@ -40,7 +40,7 @@ Los agentes nunca importan adapters directamente. Usan identificadores lógicos 
 
 ## Componentes (Fase 3)
 
-- **Sites config** (`.opencode/config/sites.json`): declarativo, commiteable.
+- **Sites config** (`sites.json` en la raíz del repo): declarativo, commiteable.
 - **State store** (`state/<siteId>.fingerprint`): fichero plano por sitio, escritura atómica.
 - **Detection engine** (`monitor.js`): híbrido HEAD-first / hash-fallback.
 - **Notifier** (`sendTelegramSummary` en `monitor.js`): 1 mensaje Markdown.
@@ -65,7 +65,7 @@ Los agentes nunca importan adapters directamente. Usan identificadores lógicos 
 │         ▼                                                        │
 │  node monitor.js                                                 │
 │     │                                                            │
-│     ├─ loadSites() ←── .opencode/config/sites.json              │
+│     ├─ loadSites() ←── sites.json (raíz)                       │
 │     │                                                            │
 │     └─ for each site:                                            │
 │          ├─ fetchHead(url) → { lastModified, etag }              │

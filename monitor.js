@@ -12,7 +12,7 @@ import { createHash } from "node:crypto";
 import axios from "axios";
 import * as cheerio from "cheerio";
 
-const SITES_FILE = ".opencode/config/sites.json";
+const SITES_FILE = "sites.json";
 const STATE_DIR = "state";
 const INIT_FLAG = `${STATE_DIR}/.initialized`;
 const HEAD_TIMEOUT_MS = 10_000;

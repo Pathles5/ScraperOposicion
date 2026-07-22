@@ -88,7 +88,7 @@ Entregables:
 Entregables:
 
 - `monitor.js` → refactor a multi-site con detección híbrida HEAD-first / SHA-256 (fallback).
-- `.opencode/config/sites.json` → 2 webs declaradas (CM Educacion + CM Sede).
+- `sites.json` (raíz) → 2 webs declaradas (CM Educacion + CM Sede).
 - `state/<siteId>.fingerprint` → persistencia por sitio (atomic write).
 - `sendTelegramSummary` → 1 mensaje Markdown con N sitios, política always-notify (288/día).
 - `scripts/raspberry/{scraper.service, scraper.timer, install.sh, uninstall.sh, README.md, telegram.env.example}` → setup systemd.
